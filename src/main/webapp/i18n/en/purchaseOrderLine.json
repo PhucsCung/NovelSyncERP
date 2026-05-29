@@ -1,0 +1,27 @@
+{
+  "novelSyncErpApp": {
+    "purchaseOrderLine": {
+      "home": {
+        "title": "Purchase Order Lines",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Purchase Order Line",
+        "createOrEditLabel": "Create or edit a Purchase Order Line",
+        "notFound": "No Purchase Order Lines found"
+      },
+      "created": "A new Purchase Order Line is created with identifier {{ param }}",
+      "updated": "A Purchase Order Line is updated with identifier {{ param }}",
+      "deleted": "A Purchase Order Line is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Purchase Order Line {{ id }}?"
+      },
+      "detail": {
+        "title": "Purchase Order Line"
+      },
+      "id": "ID",
+      "quantity": "Quantity",
+      "unitPrice": "Unit Price",
+      "product": "Product",
+      "purchaseOrder": "Purchase Order"
+    }
+  }
+}

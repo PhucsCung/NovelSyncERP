@@ -1,0 +1,12 @@
+{
+  "novelSyncErpApp": {
+    "OrderStatus": {
+      "null": "",
+      "DRAFT": "DRAFT",
+      "APPROVED": "APPROVED",
+      "PROCESSING": "PROCESSING",
+      "COMPLETED": "COMPLETED",
+      "CANCELLED": "CANCELLED"
+    }
+  }
+}

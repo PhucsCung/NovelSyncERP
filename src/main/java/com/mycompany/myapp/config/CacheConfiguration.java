@@ -81,6 +81,27 @@ public class CacheConfiguration {
             createCache(cm, com.mycompany.myapp.domain.User.class.getName(), jcacheConfiguration);
             createCache(cm, com.mycompany.myapp.domain.Authority.class.getName(), jcacheConfiguration);
             createCache(cm, com.mycompany.myapp.domain.User.class.getName() + ".authorities", jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Department.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Department.class.getName() + ".employees", jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Employee.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Customer.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Supplier.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Category.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Product.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Warehouse.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.InventoryBalance.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.InventoryTransaction.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.SalesOrder.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.SalesOrder.class.getName() + ".orderLines", jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.SalesOrderLine.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.PurchaseOrder.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.PurchaseOrder.class.getName() + ".orderLines", jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.PurchaseOrderLine.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.TransferOrder.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.TransferOrder.class.getName() + ".orderLines", jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.TransferOrderLine.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Payment.class.getName(), jcacheConfiguration);
+            createCache(cm, com.mycompany.myapp.domain.Notification.class.getName(), jcacheConfiguration);
             // jhipster-needle-redis-add-entry
         };
     }

@@ -1,0 +1,30 @@
+{
+  "novelSyncErpApp": {
+    "inventoryTransaction": {
+      "home": {
+        "title": "Inventory Transactions",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Inventory Transaction",
+        "createOrEditLabel": "Create or edit a Inventory Transaction",
+        "notFound": "No Inventory Transactions found"
+      },
+      "created": "A new Inventory Transaction is created with identifier {{ param }}",
+      "updated": "A Inventory Transaction is updated with identifier {{ param }}",
+      "deleted": "A Inventory Transaction is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Inventory Transaction {{ id }}?"
+      },
+      "detail": {
+        "title": "Inventory Transaction"
+      },
+      "id": "ID",
+      "type": "Type",
+      "quantity": "Quantity",
+      "unitCost": "Unit Cost",
+      "referenceId": "Reference Id",
+      "createdDate": "Created Date",
+      "product": "Product",
+      "warehouse": "Warehouse"
+    }
+  }
+}

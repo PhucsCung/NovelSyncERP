@@ -7,6 +7,23 @@
       "jhipster-needle-menu-add-element": "JHipster will add additional menu entries here (do not translate!)",
       "entities": {
         "main": "Entities",
+        "department": "Department",
+        "employee": "Employee",
+        "customer": "Customer",
+        "supplier": "Supplier",
+        "category": "Category",
+        "product": "Product",
+        "warehouse": "Warehouse",
+        "inventoryBalance": "Inventory Balance",
+        "inventoryTransaction": "Inventory Transaction",
+        "salesOrder": "Sales Order",
+        "salesOrderLine": "Sales Order Line",
+        "purchaseOrder": "Purchase Order",
+        "purchaseOrderLine": "Purchase Order Line",
+        "transferOrder": "Transfer Order",
+        "transferOrderLine": "Transfer Order Line",
+        "payment": "Payment",
+        "notification": "Notification",
         "jhipster-needle-menu-add-entry": "JHipster will add additional entities here (do not translate!)"
       },
       "account": {

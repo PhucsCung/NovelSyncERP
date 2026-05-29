@@ -1,0 +1,46 @@
+{
+  "applications": "*",
+  "changelogDate": "20260526105852",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "transfer_order",
+  "fields": [
+    {
+      "fieldName": "transferCode",
+      "fieldType": "String",
+      "fieldValidateRules": ["required", "unique"]
+    },
+    {
+      "fieldName": "status",
+      "fieldType": "OrderStatus",
+      "fieldValidateRules": ["required"],
+      "fieldValues": "DRAFT,APPROVED,PROCESSING,COMPLETED,CANCELLED"
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "TransferOrder",
+  "pagination": "pagination",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityName": "transferOrderLine",
+      "otherEntityRelationshipName": "transferOrder",
+      "relationshipName": "orderLine",
+      "relationshipType": "one-to-many"
+    },
+    {
+      "otherEntityField": "name",
+      "otherEntityName": "warehouse",
+      "relationshipName": "fromWarehouse",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityField": "name",
+      "otherEntityName": "warehouse",
+      "relationshipName": "toWarehouse",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}

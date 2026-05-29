@@ -1,0 +1,7 @@
+export enum NotificationType {
+  SYSTEM = 'SYSTEM',
+
+  ORDER_APPROVAL = 'ORDER_APPROVAL',
+
+  INVENTORY_ALERT = 'INVENTORY_ALERT',
+}

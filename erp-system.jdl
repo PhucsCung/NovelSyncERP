@@ -1,0 +1,219 @@
+// ==========================================
+// 1. ENUMS (Các kiểu dữ liệu cố định)
+// ==========================================
+enum TransactionType {
+    RECEIPT, ISSUE, TRANSFER_IN, TRANSFER_OUT
+}
+
+enum OrderStatus {
+    DRAFT, APPROVED, PROCESSING, COMPLETED, CANCELLED
+}
+
+enum PaymentType {
+    RECEIPT, DISBURSEMENT
+}
+
+// ==========================================
+// 2. NHÂN SỰ & BẢO MẬT
+// ==========================================
+entity Department {
+    code String required unique
+    name String required
+}
+
+entity Employee {
+    fullName String required
+    phone String
+}
+
+// ==========================================
+// 3. ĐỐI TÁC (KHÁCH HÀNG & NHÀ CUNG CẤP)
+// ==========================================
+entity Customer {
+    code String required unique
+    name String required
+    phone String
+    creditLimit BigDecimal
+    currentDebt BigDecimal
+}
+
+entity Supplier {
+    code String required unique
+    name String required
+    phone String
+    currentDebt BigDecimal
+}
+
+// ==========================================
+// 4. DANH MỤC SẢN PHẨM
+// ==========================================
+entity Category {
+    code String required unique
+    name String required
+}
+
+entity Product {
+    sku String required unique
+    name String required
+    basePrice BigDecimal required
+    /** Lưu thuộc tính động dạng JSON chuỗi */
+    attributes TextBlob
+}
+
+// ==========================================
+// 5. KHO BÃI & TỒN KHO
+// ==========================================
+entity Warehouse {
+    code String required unique
+    name String required
+    address String
+}
+
+entity InventoryBalance {
+    quantity Integer required
+}
+
+entity InventoryTransaction {
+    type TransactionType required
+    quantity Integer required
+    unitCost BigDecimal
+    referenceId Long
+    createdDate Instant required
+}
+
+// ==========================================
+// 6. LUỒNG MUA BÁN & ĐIỀU CHUYỂN
+// ==========================================
+entity SalesOrder {
+    orderCode String required unique
+    totalAmount BigDecimal
+    status OrderStatus required
+}
+
+entity SalesOrderLine {
+    quantity Integer required
+    unitPrice BigDecimal required
+}
+
+entity PurchaseOrder {
+    poCode String required unique
+    totalAmount BigDecimal
+    status OrderStatus required
+}
+
+entity PurchaseOrderLine {
+    quantity Integer required
+    unitPrice BigDecimal required
+}
+
+entity TransferOrder {
+    transferCode String required unique
+    status OrderStatus required
+}
+
+entity TransferOrderLine {
+    quantity Integer required
+}
+
+// ==========================================
+// 7. TÀI CHÍNH
+// ==========================================
+entity Payment {
+    paymentCode String required unique
+    type PaymentType required
+    amount BigDecimal required
+    referenceOrderId Long
+    createdAt Instant required
+}
+
+// ==========================================
+// 8. ĐỊNH NGHĨA QUAN HỆ (RELATIONSHIPS)
+// ==========================================
+
+// Quan hệ 1-1: Liên kết Tài khoản JHipster với Hồ sơ nhân viên
+relationship OneToOne {
+    Employee{user(login)} to User
+}
+
+// Quan hệ 1-N (One-to-Many): Từ 1 bảng Cha trỏ ra nhiều bảng Con
+relationship OneToMany {
+    Department{employee} to Employee{department}
+
+    // Chi tiết đơn hàng
+    SalesOrder{orderLine} to SalesOrderLine{salesOrder}
+    PurchaseOrder{orderLine} to PurchaseOrderLine{purchaseOrder}
+    TransferOrder{orderLine} to TransferOrderLine{transferOrder}
+}
+
+// Quan hệ N-1 (Many-to-One): Nhiều dòng trỏ về 1 dòng
+relationship ManyToOne {
+    // Cây phân cấp quản lý và giới hạn kho của Employee
+    Employee{manager(fullName)} to Employee
+    Employee{scopedWarehouse(name)} to Warehouse
+
+    // Phân loại Sản phẩm
+    Product{category(name)} to Category
+
+    // Liên kết của Tồn kho
+    InventoryBalance{product(name)} to Product
+    InventoryBalance{warehouse(name)} to Warehouse
+
+    // Liên kết của Giao dịch kho
+    InventoryTransaction{product(name)} to Product
+    InventoryTransaction{warehouse(name)} to Warehouse
+
+    // Liên kết Đơn Bán Hàng
+    SalesOrder{customer(name)} to Customer
+    SalesOrder{employee(fullName)} to Employee
+    SalesOrder{warehouse(name)} to Warehouse
+    SalesOrderLine{product(name)} to Product
+
+    // Liên kết Đơn Mua Hàng
+    PurchaseOrder{supplier(name)} to Supplier
+    PurchaseOrder{employee(fullName)} to Employee
+    PurchaseOrder{warehouse(name)} to Warehouse
+    PurchaseOrderLine{product(name)} to Product
+
+    // Liên kết Đơn Điều Chuyển
+    TransferOrder{fromWarehouse(name)} to Warehouse
+    TransferOrder{toWarehouse(name)} to Warehouse
+    TransferOrderLine{product(name)} to Product
+
+    // Liên kết Dòng tiền
+    Payment{customer(name)} to Customer
+    Payment{supplier(name)} to Supplier
+}
+
+// ==========================================
+// 9. CẤU HÌNH (OPTIONS)
+// ==========================================
+// Phân trang cho tất cả các danh sách
+paginate all with pagination
+
+// Sử dụng DTO (Data Transfer Object) và MapStruct để giao tiếp với Front-end
+dto all with mapstruct
+
+// Tách riêng lớp Service (Interface & Impl) cho gọn Controller
+service all with serviceImpl
+// ==========================================
+// THÔNG BÁO (NOTIFICATION - UPDATED)
+// ==========================================
+enum NotificationType {
+    SYSTEM,           // Báo cáo hệ thống (bảo trì, update...)
+    ORDER_APPROVAL,   // Cần duyệt đơn mua/bán
+    INVENTORY_ALERT   // Cảnh báo sắp hết hàng
+}
+
+entity Notification {
+    title String required
+    message String required maxlength(1000)
+    isRead Boolean required
+    type NotificationType required
+    referenceId Long // ID của đơn hàng hoặc phiếu nhập (để click vào là mở đúng trang)
+    createdAt Instant required
+}
+
+// Bổ sung quan hệ ManyToOne cho Notification (Nhiều thông báo gửi cho 1 nhân viên)
+relationship ManyToOne {
+    Notification{recipient(fullName)} to Employee
+}

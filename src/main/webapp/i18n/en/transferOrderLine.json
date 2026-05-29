@@ -1,0 +1,26 @@
+{
+  "novelSyncErpApp": {
+    "transferOrderLine": {
+      "home": {
+        "title": "Transfer Order Lines",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Transfer Order Line",
+        "createOrEditLabel": "Create or edit a Transfer Order Line",
+        "notFound": "No Transfer Order Lines found"
+      },
+      "created": "A new Transfer Order Line is created with identifier {{ param }}",
+      "updated": "A Transfer Order Line is updated with identifier {{ param }}",
+      "deleted": "A Transfer Order Line is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Transfer Order Line {{ id }}?"
+      },
+      "detail": {
+        "title": "Transfer Order Line"
+      },
+      "id": "ID",
+      "quantity": "Quantity",
+      "product": "Product",
+      "transferOrder": "Transfer Order"
+    }
+  }
+}

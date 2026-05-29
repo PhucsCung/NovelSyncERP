@@ -1,0 +1,9 @@
+{
+  "novelSyncErpApp": {
+    "PaymentType": {
+      "null": "",
+      "RECEIPT": "RECEIPT",
+      "DISBURSEMENT": "DISBURSEMENT"
+    }
+  }
+}

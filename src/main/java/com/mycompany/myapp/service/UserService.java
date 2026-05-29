@@ -2,8 +2,10 @@ package com.mycompany.myapp.service;
 
 import com.mycompany.myapp.config.Constants;
 import com.mycompany.myapp.domain.Authority;
+import com.mycompany.myapp.domain.Employee;
 import com.mycompany.myapp.domain.User;
 import com.mycompany.myapp.repository.AuthorityRepository;
+import com.mycompany.myapp.repository.EmployeeRepository;
 import com.mycompany.myapp.repository.UserRepository;
 import com.mycompany.myapp.security.AuthoritiesConstants;
 import com.mycompany.myapp.security.SecurityUtils;
@@ -41,16 +43,20 @@ public class UserService {
 
     private final CacheManager cacheManager;
 
+    private final EmployeeRepository employeeRepository;
+
     public UserService(
         UserRepository userRepository,
         PasswordEncoder passwordEncoder,
         AuthorityRepository authorityRepository,
-        CacheManager cacheManager
+        CacheManager cacheManager,
+        EmployeeRepository employeeRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
+        this.employeeRepository = employeeRepository;
     }
 
     public Optional<User> activateRegistration(String key) {
@@ -130,6 +136,7 @@ public class UserService {
         authorityRepository.findById(AuthoritiesConstants.USER).ifPresent(authorities::add);
         newUser.setAuthorities(authorities);
         userRepository.save(newUser);
+        syncUserToEmployee(newUser);
         this.clearUserCaches(newUser);
         log.debug("Created Information for User: {}", newUser);
         return newUser;
@@ -175,6 +182,7 @@ public class UserService {
             user.setAuthorities(authorities);
         }
         userRepository.save(user);
+        syncUserToEmployee(user);
         this.clearUserCaches(user);
         log.debug("Created Information for User: {}", user);
         return user;
@@ -321,5 +329,24 @@ public class UserService {
         if (user.getEmail() != null) {
             Objects.requireNonNull(cacheManager.getCache(UserRepository.USERS_BY_EMAIL_CACHE)).evict(user.getEmail());
         }
+    }
+
+    /**
+     * Tự động tạo hồ sơ Employee ngay khi có User mới được tạo
+     */
+    private void syncUserToEmployee(User user) {
+        Employee employee = new Employee();
+        employee.setUser(user);
+
+        // Gộp Tên và Họ của User để tạo FullName cho Employee
+        String firstName = user.getFirstName() != null ? user.getFirstName() : "";
+        String lastName = user.getLastName() != null ? user.getLastName() : "";
+        String fullName = (firstName + " " + lastName).trim();
+
+        // Nếu không có tên họ, lấy luôn tên đăng nhập (login) làm tên hiển thị
+        employee.setFullName(fullName.isEmpty() ? user.getLogin() : fullName);
+
+        employeeRepository.save(employee);
+        log.debug("Auto-created Employee profile for User: {}", user.getLogin());
     }
 }

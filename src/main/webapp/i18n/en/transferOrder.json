@@ -1,0 +1,28 @@
+{
+  "novelSyncErpApp": {
+    "transferOrder": {
+      "home": {
+        "title": "Transfer Orders",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Transfer Order",
+        "createOrEditLabel": "Create or edit a Transfer Order",
+        "notFound": "No Transfer Orders found"
+      },
+      "created": "A new Transfer Order is created with identifier {{ param }}",
+      "updated": "A Transfer Order is updated with identifier {{ param }}",
+      "deleted": "A Transfer Order is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Transfer Order {{ id }}?"
+      },
+      "detail": {
+        "title": "Transfer Order"
+      },
+      "id": "ID",
+      "transferCode": "Transfer Code",
+      "status": "Status",
+      "orderLine": "Order Line",
+      "fromWarehouse": "From Warehouse",
+      "toWarehouse": "To Warehouse"
+    }
+  }
+}

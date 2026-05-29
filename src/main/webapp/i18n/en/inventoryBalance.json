@@ -1,0 +1,26 @@
+{
+  "novelSyncErpApp": {
+    "inventoryBalance": {
+      "home": {
+        "title": "Inventory Balances",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Inventory Balance",
+        "createOrEditLabel": "Create or edit a Inventory Balance",
+        "notFound": "No Inventory Balances found"
+      },
+      "created": "A new Inventory Balance is created with identifier {{ param }}",
+      "updated": "A Inventory Balance is updated with identifier {{ param }}",
+      "deleted": "A Inventory Balance is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Inventory Balance {{ id }}?"
+      },
+      "detail": {
+        "title": "Inventory Balance"
+      },
+      "id": "ID",
+      "quantity": "Quantity",
+      "product": "Product",
+      "warehouse": "Warehouse"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "novelSyncErpApp": {
+    "salesOrderLine": {
+      "home": {
+        "title": "Sales Order Lines",
+        "refreshListLabel": "Refresh list",
+        "createLabel": "Create a new Sales Order Line",
+        "createOrEditLabel": "Create or edit a Sales Order Line",
+        "notFound": "No Sales Order Lines found"
+      },
+      "created": "A new Sales Order Line is created with identifier {{ param }}",
+      "updated": "A Sales Order Line is updated with identifier {{ param }}",
+      "deleted": "A Sales Order Line is deleted with identifier {{ param }}",
+      "delete": {
+        "question": "Are you sure you want to delete Sales Order Line {{ id }}?"
+      },
+      "detail": {
+        "title": "Sales Order Line"
+      },
+      "id": "ID",
+      "quantity": "Quantity",
+      "unitPrice": "Unit Price",
+      "product": "Product",
+      "salesOrder": "Sales Order"
+    }
+  }
+}

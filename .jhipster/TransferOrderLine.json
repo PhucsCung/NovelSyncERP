@@ -1,0 +1,34 @@
+{
+  "applications": "*",
+  "changelogDate": "20260526105853",
+  "dto": "mapstruct",
+  "embedded": false,
+  "entityTableName": "transfer_order_line",
+  "fields": [
+    {
+      "fieldName": "quantity",
+      "fieldType": "Integer",
+      "fieldValidateRules": ["required"]
+    }
+  ],
+  "fluentMethods": true,
+  "jpaMetamodelFiltering": false,
+  "name": "TransferOrderLine",
+  "pagination": "pagination",
+  "readOnly": false,
+  "relationships": [
+    {
+      "otherEntityField": "name",
+      "otherEntityName": "product",
+      "relationshipName": "product",
+      "relationshipType": "many-to-one"
+    },
+    {
+      "otherEntityName": "transferOrder",
+      "otherEntityRelationshipName": "orderLine",
+      "relationshipName": "transferOrder",
+      "relationshipType": "many-to-one"
+    }
+  ],
+  "service": "serviceImpl"
+}
