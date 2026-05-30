@@ -64,4 +64,7 @@ public interface InventoryBalanceRepository extends JpaRepository<InventoryBalan
         "ib.warehouse.id in (select e.scopedWarehouse.id from Employee e where e.user.login = :login)"
     )
     Optional<InventoryBalance> findOneByIdAndUserLogin(@Param("id") Long id, @Param("login") String login);
+
+    // Lấy danh sách tồn kho dựa vào ID Kho và danh sách ID Sản phẩm
+    List<InventoryBalance> findByWarehouseIdAndProductIdIn(Long warehouseId, List<Long> productIds);
 }

@@ -56,21 +56,20 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
     )
     Page<SalesOrder> findAllByEmployeeUserLogin(@Param("login") String login, Pageable pageable);
 
-    // Lọc đơn hàng theo Phòng ban (Department) của Manager đang đăng nhập
+    //Lọc danh sách đơn hàng theo Kho của Manager đang đăng nhập
     @Query(
         value = "select distinct salesOrder from SalesOrder salesOrder " +
         "left join fetch salesOrder.customer " +
         "left join fetch salesOrder.employee e " +
         "left join fetch e.user u " +
         "left join fetch salesOrder.warehouse " +
-        "where e.department.id = (select emp.department.id from Employee emp where emp.user.login = :login)",
+        "where salesOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)",
         countQuery = "select count(distinct salesOrder) from SalesOrder salesOrder " +
-        "left join salesOrder.employee e " +
-        "where e.department.id = (select emp.department.id from Employee emp where emp.user.login = :login)"
+        "where salesOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)"
     )
-    Page<SalesOrder> findAllByEmployeeDepartment(@Param("login") String login, Pageable pageable);
+    Page<SalesOrder> findAllByEmployeeScopedWarehouse(@Param("login") String login, Pageable pageable);
 
-    // Lọc chi tiết 1 đơn hàng theo phòng ban (dùng cho hàm findOne)
+    //Lọc chi tiết 1 đơn hàng theo Kho (Chống xem trộm đơn chi nhánh khác bằng ID)
     @Query(
         "select distinct salesOrder from SalesOrder salesOrder " +
         "left join fetch salesOrder.customer " +
@@ -78,7 +77,14 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
         "left join fetch e.user u " +
         "left join fetch salesOrder.warehouse " +
         "where salesOrder.id = :id and " +
-        "e.department.id = (select emp.department.id from Employee emp where emp.user.login = :login)"
+        "salesOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)"
     )
-    Optional<SalesOrder> findOneByEmployeeDepartment(@Param("id") Long id, @Param("login") String login);
+    Optional<SalesOrder> findOneByIdAndEmployeeScopedWarehouse(@Param("id") Long id, @Param("login") String login);
+
+    //Dành riêng cho Sales - Chỉ lấy đơn do chính họ tạo ra
+    @Query("select s from SalesOrder s left join fetch s.customer left join fetch s.warehouse where s.createdBy = :login")
+    Page<SalesOrder> findAllByCreatedBy(@Param("login") String login, Pageable pageable);
+
+    @Query("select s from SalesOrder s left join fetch s.customer left join fetch s.warehouse where s.id = :id and s.createdBy = :login")
+    Optional<SalesOrder> findOneByIdAndCreatedBy(@Param("id") Long id, @Param("login") String login);
 }

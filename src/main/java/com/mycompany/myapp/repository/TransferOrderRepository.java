@@ -65,5 +65,6 @@ public interface TransferOrderRepository extends JpaRepository<TransferOrder, Lo
         "  t.toWarehouse.id in (select e.scopedWarehouse.id from Employee e where e.user.login = :login)" +
         ")"
     )
-    Optional<TransferOrder> findOneByIdAndUserLogin(@Param("id") Long id, @Param("login") String login);
+    // CHỈ CẦN ĐỔI TÊN HÀM Ở DÒNG NÀY (Câu lệnh Query giữ nguyên vì bạn viết đúng rồi)
+    Optional<TransferOrder> findOneByIdAndEmployeeScopedWarehouse(@Param("id") Long id, @Param("login") String login);
 }

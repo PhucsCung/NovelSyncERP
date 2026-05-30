@@ -1,11 +1,11 @@
 id;code;name;is_active
-1;Virtual;wireless bus Tools;true
-2;global groupware;scalable;true
-3;Chicken;blue;true
-4;navigating Hat Savings;Consultant solution-oriented;true
-5;Borders;Account Fully-configurable;true
-6;Slovakia;Won;true
-7;Granite Concrete Unbranded;distributed;true
-8;Principal;override bypassing;true
-9;withdrawal;Computer;true
-10;Cotton 1080p Steel;azure;true
+1;Virtual;SALES;true
+2;global groupware;SALES;true
+3;Chicken;SALES;true
+4;navigating Hat Savings;SALES;true
+5;Borders;SALES;true
+6;Slovakia;PURCHASE;true
+7;Granite Concrete Unbranded;PURCHASE;true
+8;Principal;WAREHOUSE;true
+9;withdrawal;WAREHOUSE;true
+10;Cotton 1080p Steel;ACCOUNTING;true

@@ -1,6 +1,7 @@
 package com.mycompany.myapp.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.mycompany.myapp.domain.enumeration.DepartmentName;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
@@ -34,8 +35,9 @@ public class Department implements Serializable {
     private String code;
 
     @NotNull
-    @Column(name = "name", nullable = false)
-    private String name;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "name")
+    private DepartmentName name;
 
     @OneToMany(mappedBy = "department")
     @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
@@ -86,16 +88,16 @@ public class Department implements Serializable {
         this.code = code;
     }
 
-    public String getName() {
+    public DepartmentName getName() {
         return this.name;
     }
 
-    public Department name(String name) {
+    public Department name(DepartmentName name) {
         this.setName(name);
         return this;
     }
 
-    public void setName(String name) {
+    public void setName(DepartmentName name) {
         this.name = name;
     }
 
