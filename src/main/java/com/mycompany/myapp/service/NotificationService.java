@@ -63,4 +63,13 @@ public interface NotificationService {
      * @param id the id of the entity.
      */
     void delete(Long id);
+
+    /**
+     * Get latest notifications by user login.
+     *
+     * @param login the user login.
+     * @param pageable the pagination information.
+     * @return the list of entities.
+     */
+    Page<NotificationDTO> findLatestByUserLogin(String login, Pageable pageable);
 }

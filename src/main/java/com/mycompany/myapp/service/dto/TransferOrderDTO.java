@@ -36,6 +36,16 @@ public class TransferOrderDTO implements Serializable {
         this.transferOrderLines = transferOrderLines;
     }
 
+    private EmployeeDTO employee;
+
+    public EmployeeDTO getEmployee() {
+        return employee;
+    }
+
+    public void setEmployee(EmployeeDTO employee) {
+        this.employee = employee;
+    }
+
     public Long getId() {
         return id;
     }

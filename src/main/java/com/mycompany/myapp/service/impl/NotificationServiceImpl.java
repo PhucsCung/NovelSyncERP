@@ -104,4 +104,12 @@ public class NotificationServiceImpl implements NotificationService {
         log.debug("Request to delete Notification : {}", id);
         notificationRepository.deleteById(id);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<NotificationDTO> findLatestByUserLogin(String login, Pageable pageable) {
+        log.debug("Request to get latest notifications for user : {}", login);
+
+        return notificationRepository.findLatestByUserLogin(login, pageable).map(notificationMapper::toDto);
+    }
 }

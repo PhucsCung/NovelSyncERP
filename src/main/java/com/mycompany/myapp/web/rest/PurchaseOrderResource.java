@@ -175,6 +175,17 @@ public class PurchaseOrderResource {
      * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many).
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of purchaseOrders in body.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @GetMapping("/purchase-orders")
     public ResponseEntity<List<PurchaseOrderDTO>> getAllPurchaseOrders(
         @org.springdoc.api.annotations.ParameterObject Pageable pageable,
@@ -197,6 +208,17 @@ public class PurchaseOrderResource {
      * @param id the id of the purchaseOrderDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the purchaseOrderDTO, or with status {@code 404 (Not Found)}.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @GetMapping("/purchase-orders/{id}")
     public ResponseEntity<PurchaseOrderDTO> getPurchaseOrder(@PathVariable Long id) {
         log.debug("REST request to get PurchaseOrder : {}", id);
@@ -260,7 +282,15 @@ public class PurchaseOrderResource {
     /**
      * {@code PUT  /purchase-orders/{id}/cancel} : Hủy đơn mua hàng.
      */
-    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.MANAGER + "\")")
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @PutMapping("/purchase-orders/{id}/cancel")
     public ResponseEntity<PurchaseOrderDTO> cancelPurchaseOrder(@PathVariable Long id) {
         log.debug("REST request to cancel PurchaseOrder : {}", id);

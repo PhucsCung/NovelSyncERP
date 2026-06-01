@@ -174,6 +174,17 @@ public class SalesOrderResource {
      * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many).
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of salesOrders in body.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.SALES +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @GetMapping("/sales-orders")
     public ResponseEntity<List<SalesOrderDTO>> getAllSalesOrders(
         @org.springdoc.api.annotations.ParameterObject Pageable pageable,
@@ -197,6 +208,17 @@ public class SalesOrderResource {
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the salesOrderDTO, or with status {@code 404 (Not Found)}.
      */
     @GetMapping("/sales-orders/{id}")
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.SALES +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     public ResponseEntity<SalesOrderDTO> getSalesOrder(@PathVariable Long id) {
         log.debug("REST request to get SalesOrder : {}", id);
         Optional<SalesOrderDTO> salesOrderDTO = salesOrderService.findOne(id);
@@ -259,7 +281,15 @@ public class SalesOrderResource {
      * {@code PUT  /sales-orders/{id}/cancel} : Hủy đơn bán hàng và hoàn trả dữ liệu.
      */
     @PutMapping("/sales-orders/{id}/cancel")
-    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.MANAGER + "\")")
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     public ResponseEntity<SalesOrderDTO> cancelSalesOrder(@PathVariable Long id) {
         log.debug("REST request to cancel SalesOrder : {}", id);
 

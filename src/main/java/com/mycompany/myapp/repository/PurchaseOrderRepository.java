@@ -56,21 +56,20 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
     )
     Page<PurchaseOrder> findAllByEmployeeUserLogin(@Param("login") String login, Pageable pageable);
 
-    // Lọc đơn hàng theo Phòng ban (Department) của Manager đang đăng nhập
+    //Lọc danh sách đơn hàng theo Kho của Manager đang đăng nhập
     @Query(
         value = "select distinct purchaseOrder from PurchaseOrder purchaseOrder " +
         "left join fetch purchaseOrder.supplier " +
         "left join fetch purchaseOrder.employee e " +
         "left join fetch e.user u " +
         "left join fetch purchaseOrder.warehouse " +
-        "where e.department.id = (select emp.department.id from Employee emp where emp.user.login = :login)",
+        "where purchaseOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)",
         countQuery = "select count(distinct purchaseOrder) from PurchaseOrder purchaseOrder " +
-        "left join purchaseOrder.employee e " +
-        "where e.department.id = (select emp.department.id from Employee emp where emp.user.login = :login)"
+        "where purchaseOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)"
     )
-    Page<PurchaseOrder> findAllByEmployeeDepartment(@Param("login") String login, Pageable pageable);
+    Page<PurchaseOrder> findAllByEmployeeScopedWarehouse(@Param("login") String login, Pageable pageable);
 
-    // Lọc chi tiết 1 đơn hàng theo phòng ban (dùng cho hàm findOne)
+    //Lọc chi tiết 1 đơn hàng theo Kho (Chống xem trộm)
     @Query(
         "select distinct purchaseOrder from PurchaseOrder purchaseOrder " +
         "left join fetch purchaseOrder.supplier " +
@@ -78,7 +77,18 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
         "left join fetch e.user u " +
         "left join fetch purchaseOrder.warehouse " +
         "where purchaseOrder.id = :id and " +
-        "e.department.id = (select emp.department.id from Employee emp where emp.user.login = :login)"
+        "purchaseOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)"
     )
-    Optional<PurchaseOrder> findOneByEmployeeDepartment(@Param("id") Long id, @Param("login") String login);
+    Optional<PurchaseOrder> findOneByIdAndEmployeeScopedWarehouse(@Param("id") Long id, @Param("login") String login);
+
+    //Lọc chi tiết 1 đơn hàng dành riêng cho Purchaser (Chính chủ)
+    @Query(
+        "select distinct purchaseOrder from PurchaseOrder purchaseOrder " +
+        "left join fetch purchaseOrder.supplier " +
+        "left join fetch purchaseOrder.employee e " +
+        "left join fetch e.user u " +
+        "left join fetch purchaseOrder.warehouse " +
+        "where purchaseOrder.id = :id and u.login = :login"
+    )
+    Optional<PurchaseOrder> findOneByIdAndEmployeeUserLogin(@Param("id") Long id, @Param("login") String login);
 }

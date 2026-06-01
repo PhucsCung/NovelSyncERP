@@ -187,7 +187,7 @@ public class NotificationResource {
     /**
      * {@code DELETE  /notifications/:id} : delete the "id" notification.
      *
-     * @param id the id of the notificationDTO to delete.
+     * @param {id} the id of the notificationDTO to delete.
      * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
      */
     //    @DeleteMapping("/notifications/{id}")
@@ -202,10 +202,16 @@ public class NotificationResource {
 
     @GetMapping("/notifications/my-latest")
     public ResponseEntity<List<NotificationDTO>> getMyLatestNotifications() {
-        String currentUser = SecurityUtils.getCurrentUserLogin().orElseThrow();
+        log.debug("REST request to get latest notifications for current user");
+
+        String currentUser = SecurityUtils
+            .getCurrentUserLogin()
+            .orElseThrow(() -> new BadRequestAlertException("Chưa đăng nhập", "notification", "not_logged_in"));
+
         // Lấy trang đầu tiên (số 0), kích thước 20
         Pageable topTwenty = org.springframework.data.domain.PageRequest.of(0, 20);
-        Page<NotificationDTO> page = notificationRepository.findLatestByUserLogin(currentUser, topTwenty).map(notificationMapper::toDto);
+        Page<NotificationDTO> page = notificationService.findLatestByUserLogin(currentUser, topTwenty);
+
         return ResponseEntity.ok().body(page.getContent());
     }
 }

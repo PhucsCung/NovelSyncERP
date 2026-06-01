@@ -46,7 +46,24 @@ public class TransferOrder implements Serializable {
     @ManyToOne
     private Warehouse toWarehouse;
 
+    @ManyToOne
+    @JsonIgnoreProperties(value = { "user", "manager", "scopedWarehouse", "department" }, allowSetters = true)
+    private Employee employee;
+
     // jhipster-needle-entity-add-field - JHipster will add fields here
+
+    public Employee getEmployee() {
+        return this.employee;
+    }
+
+    public void setEmployee(Employee employee) {
+        this.employee = employee;
+    }
+
+    public TransferOrder employee(Employee employee) {
+        this.setEmployee(employee);
+        return this;
+    }
 
     public Long getId() {
         return this.id;

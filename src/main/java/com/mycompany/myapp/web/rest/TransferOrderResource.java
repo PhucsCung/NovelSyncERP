@@ -175,6 +175,15 @@ public class TransferOrderResource {
      * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many).
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of transferOrders in body.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
+        "\")"
+    )
     @GetMapping("/transfer-orders")
     public ResponseEntity<List<TransferOrderDTO>> getAllTransferOrders(
         @org.springdoc.api.annotations.ParameterObject Pageable pageable,
@@ -197,6 +206,15 @@ public class TransferOrderResource {
      * @param id the id of the transferOrderDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the transferOrderDTO, or with status {@code 404 (Not Found)}.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
+        "\")"
+    )
     @GetMapping("/transfer-orders/{id}")
     public ResponseEntity<TransferOrderDTO> getTransferOrder(@PathVariable Long id) {
         log.debug("REST request to get TransferOrder : {}", id);

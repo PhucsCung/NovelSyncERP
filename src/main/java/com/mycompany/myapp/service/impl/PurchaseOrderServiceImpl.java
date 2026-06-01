@@ -1,7 +1,5 @@
 package com.mycompany.myapp.service.impl;
 
-import static org.hibernate.id.IdentifierGenerator.ENTITY_NAME;
-
 import com.mycompany.myapp.domain.*;
 import com.mycompany.myapp.domain.enumeration.OrderStatus;
 import com.mycompany.myapp.domain.enumeration.TransactionType;
@@ -19,7 +17,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,21 +37,17 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
     private final Logger log = LoggerFactory.getLogger(PurchaseOrderServiceImpl.class);
 
+    private static final String ENTITY_NAME = "purchaseOrder";
+
     private final PurchaseOrderRepository purchaseOrderRepository;
-
     private final PurchaseOrderMapper purchaseOrderMapper;
-
     private final PurchaseOrderLineRepository purchaseOrderLineRepository;
-
     private final InventoryTransactionRepository inventoryTransactionRepository;
-
     private final InventoryBalanceRepository inventoryBalanceRepository;
-
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
-
     private final SupplierRepository supplierRepository;
-
     private final ApplicationEventPublisher eventPublisher;
+    private final EmployeeRepository employeeRepository; // ĐÃ THÊM
 
     public PurchaseOrderServiceImpl(
         PurchaseOrderRepository purchaseOrderRepository,
@@ -61,7 +57,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         InventoryBalanceRepository inventoryBalanceRepository,
         PurchaseOrderLineMapper purchaseOrderLineMapper,
         SupplierRepository supplierRepository,
-        ApplicationEventPublisher eventPublisher
+        ApplicationEventPublisher eventPublisher,
+        EmployeeRepository employeeRepository // ĐÃ THÊM
     ) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
@@ -71,80 +68,192 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.supplierRepository = supplierRepository;
         this.eventPublisher = eventPublisher;
+        this.employeeRepository = employeeRepository;
+    }
+
+    private Employee validatePurchaserAccess(Long warehouseId) {
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
+
+        Employee employee = employeeRepository
+            .findByUserLogin(currentUserLogin)
+            .orElseThrow(() ->
+                new BadRequestAlertException("Tài khoản của bạn chưa được gắn với hồ sơ nhân viên nào!", ENTITY_NAME, "employee_not_found")
+            );
+
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) {
+            return employee;
+        }
+
+        // Bắt buộc thuộc phòng Mua hàng (PURCHASE)
+        if (
+            employee.getDepartment() == null ||
+            employee.getDepartment().getName() != com.mycompany.myapp.domain.enumeration.DepartmentName.PURCHASE
+        ) {
+            throw new BadRequestAlertException("Tài khoản của bạn không thuộc phòng Mua hàng!", ENTITY_NAME, "invalid_department");
+        }
+
+        if (employee.getScopedWarehouse() == null) {
+            throw new BadRequestAlertException(
+                "Tài khoản của bạn chưa được phân công về chi nhánh/kho nào!",
+                ENTITY_NAME,
+                "no_scoped_warehouse"
+            );
+        }
+
+        if (!employee.getScopedWarehouse().getId().equals(warehouseId)) {
+            throw new BadRequestAlertException(
+                "Bạn không có quyền thao tác trên đơn hàng của chi nhánh khác!",
+                ENTITY_NAME,
+                "warehouse_access_denied"
+            );
+        }
+
+        return employee;
+    }
+
+    private void checkOrderOwnership(PurchaseOrder order) {
+        if (
+            !SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN) &&
+            !SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER)
+        ) {
+            String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow();
+            if (
+                order.getEmployee() == null ||
+                order.getEmployee().getUser() == null ||
+                !order.getEmployee().getUser().getLogin().equals(currentUserLogin)
+            ) {
+                throw new BadRequestAlertException(
+                    "Bạn không có quyền thao tác trên đơn mua hàng của người khác!",
+                    ENTITY_NAME,
+                    "access_denied"
+                );
+            }
+        }
     }
 
     @Override
     public PurchaseOrderDTO save(PurchaseOrderDTO purchaseOrderDTO) {
         log.debug("Request to save PurchaseOrder : {}", purchaseOrderDTO);
-        if (purchaseOrderDTO.getPurchaseOrderLines() == null || purchaseOrderDTO.getPurchaseOrderLines().isEmpty()) {
-            throw new BadRequestAlertException("Đơn mua hàng phải có ít nhất 1 mặt hàng!", ENTITY_NAME, "empty_order_lines");
+
+        if (purchaseOrderDTO.getSupplier() == null || purchaseOrderDTO.getSupplier().getId() == null) {
+            throw new BadRequestAlertException("Đơn mua hàng bắt buộc phải chọn Nhà cung cấp!", ENTITY_NAME, "supplier_required");
         }
-        // 1. CHẶN BẢO MẬT: Ép về DRAFT
+        if (purchaseOrderDTO.getWarehouse() == null || purchaseOrderDTO.getWarehouse().getId() == null) {
+            throw new BadRequestAlertException("Đơn mua hàng bắt buộc phải chọn Kho nhập hàng!", ENTITY_NAME, "warehouse_required");
+        }
+
+        Employee currentEmployee = validatePurchaserAccess(purchaseOrderDTO.getWarehouse().getId());
+
+        if (purchaseOrderDTO.getPurchaseOrderLines() == null || purchaseOrderDTO.getPurchaseOrderLines().isEmpty()) {
+            throw new BadRequestAlertException("Đơn mua hàng phải có ít nhất một mặt hàng!", ENTITY_NAME, "empty_lines");
+        }
+
+        // Backend tự sinh mã PO (Purchase Order)
+        purchaseOrderDTO.setPoCode("PO-" + Instant.now().toEpochMilli());
         purchaseOrderDTO.setStatus(OrderStatus.DRAFT);
 
         BigDecimal calculatedTotal = BigDecimal.ZERO;
-        if (purchaseOrderDTO.getPurchaseOrderLines() != null) {
-            for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
-                // Tiền 1 dòng = Số lượng * Đơn giá
-                BigDecimal lineTotal = line.getUnitPrice().multiply(new BigDecimal(line.getQuantity()));
-                calculatedTotal = calculatedTotal.add(lineTotal);
+        for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
+            if (line.getUnitPrice() == null || line.getQuantity() == null) {
+                throw new BadRequestAlertException("Mặt hàng không được để trống đơn giá hoặc số lượng!", ENTITY_NAME, "invalid_line_data");
             }
+            BigDecimal lineTotal = line.getUnitPrice().multiply(new BigDecimal(line.getQuantity()));
+            calculatedTotal = calculatedTotal.add(lineTotal);
         }
-        // Ghi đè lại tổng tiền bằng số hệ thống tự tính
-        purchaseOrderDTO.setTotalAmount(calculatedTotal);
 
-        // 2. Lưu Phiếu nhập (Thẻ Cha) để DB cấp cho nó 1 cái ID
+        if (purchaseOrderDTO.getTotalAmount() == null || purchaseOrderDTO.getTotalAmount().compareTo(calculatedTotal) != 0) {
+            throw new BadRequestAlertException("Tổng tiền đơn hàng không hợp lệ!", ENTITY_NAME, "total_amount_mismatch");
+        }
+
         PurchaseOrder purchaseOrder = purchaseOrderMapper.toEntity(purchaseOrderDTO);
+        purchaseOrder.setEmployee(currentEmployee);
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
 
-        // 3. Duyệt qua mảng chi tiết gửi kèm (nếu có) và lưu thẻ Con
-        List<PurchaseOrderLineDTO> lineDTOs = purchaseOrderDTO.getPurchaseOrderLines();
-        if (lineDTOs != null && !lineDTOs.isEmpty()) {
-            // Tạo một danh sách rỗng để chứa các Entity con
-            List<PurchaseOrderLine> linesToSave = new ArrayList<>();
-
-            for (PurchaseOrderLineDTO lineDTO : lineDTOs) {
-                // Chuyển DTO thành Entity
-                PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
-                // Trỏ Khóa ngoại
-                line.setPurchaseOrder(purchaseOrder);
-
-                // Ném vào danh sách chờ (CHƯA LƯU NGAY)
-                linesToSave.add(line);
-            }
-
-            // LƯU TẤT CẢ XUỐNG DB CÙNG MỘT LÚC (Tránh N+1)
-            purchaseOrderLineRepository.saveAll(linesToSave);
+        List<PurchaseOrderLine> linesToSave = new ArrayList<>();
+        for (PurchaseOrderLineDTO lineDTO : purchaseOrderDTO.getPurchaseOrderLines()) {
+            PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
+            line.setPurchaseOrder(purchaseOrder);
+            linesToSave.add(line);
         }
-        PurchaseOrderDTO result = purchaseOrderMapper.toDto(purchaseOrder);
+        purchaseOrderLineRepository.saveAll(linesToSave);
 
-        // --- CODE MỚI THÊM VÀO ---
+        PurchaseOrderDTO result = purchaseOrderMapper.toDto(purchaseOrder);
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         eventPublisher.publishEvent(
             new OrderNotificationEvent("PURCHASE", "CREATED", result.getId(), result.getPoCode(), currentLogin, currentLogin)
         );
 
-        // 4. Trả về kết quả
         return result;
     }
 
     @Override
     public PurchaseOrderDTO update(PurchaseOrderDTO purchaseOrderDTO) {
         log.debug("Request to update PurchaseOrder : {}", purchaseOrderDTO);
+
+        if (purchaseOrderDTO.getSupplier() == null || purchaseOrderDTO.getSupplier().getId() == null) {
+            throw new BadRequestAlertException("Đơn mua hàng bắt buộc phải chọn Nhà cung cấp!", ENTITY_NAME, "supplier_required");
+        }
+        if (purchaseOrderDTO.getWarehouse() == null || purchaseOrderDTO.getWarehouse().getId() == null) {
+            throw new BadRequestAlertException("Đơn mua hàng bắt buộc phải chọn Kho nhập hàng!", ENTITY_NAME, "warehouse_required");
+        }
+        if (purchaseOrderDTO.getPurchaseOrderLines() == null || purchaseOrderDTO.getPurchaseOrderLines().isEmpty()) {
+            throw new BadRequestAlertException("Đơn mua hàng phải có ít nhất một mặt hàng!", ENTITY_NAME, "empty_lines");
+        }
+
         PurchaseOrder oldOrder = purchaseOrderRepository
             .findById(purchaseOrderDTO.getId())
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng"));
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn hàng", ENTITY_NAME, "id_not_found"));
 
-        // CHẶN BẢO MẬT: Không cho phép đổi trạng thái qua API update thông thường
-        if (oldOrder.getStatus() != purchaseOrderDTO.getStatus()) {
+        validatePurchaserAccess(oldOrder.getWarehouse().getId());
+        checkOrderOwnership(oldOrder);
+
+        if (oldOrder.getStatus() != OrderStatus.DRAFT) {
             throw new BadRequestAlertException(
-                "Không được phép thay đổi trạng thái đơn hàng ở đây!",
+                "Chỉ được phép chỉnh sửa đơn hàng ở trạng thái NHÁP (DRAFT)!",
                 ENTITY_NAME,
-                "status_change_forbidden"
+                "cannot_edit_processed_order"
             );
         }
+
+        if (!purchaseOrderDTO.getWarehouse().getId().equals(oldOrder.getWarehouse().getId())) {
+            throw new BadRequestAlertException(
+                "Không được phép thay đổi kho nhập của đơn mua hàng đã tạo!",
+                ENTITY_NAME,
+                "warehouse_immutable"
+            );
+        }
+
+        purchaseOrderDTO.setPoCode(oldOrder.getPoCode());
+        purchaseOrderDTO.setStatus(OrderStatus.DRAFT);
+
+        BigDecimal calculatedTotal = BigDecimal.ZERO;
+        for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
+            if (line.getUnitPrice() == null || line.getQuantity() == null) {
+                throw new BadRequestAlertException("Mặt hàng không được để trống đơn giá hoặc số lượng!", ENTITY_NAME, "invalid_line_data");
+            }
+            BigDecimal lineTotal = line.getUnitPrice().multiply(new BigDecimal(line.getQuantity()));
+            calculatedTotal = calculatedTotal.add(lineTotal);
+        }
+
+        if (purchaseOrderDTO.getTotalAmount() == null || purchaseOrderDTO.getTotalAmount().compareTo(calculatedTotal) != 0) {
+            throw new BadRequestAlertException("Tổng tiền đơn hàng không hợp lệ!", ENTITY_NAME, "total_amount_mismatch");
+        }
+
         PurchaseOrder purchaseOrder = purchaseOrderMapper.toEntity(purchaseOrderDTO);
+        purchaseOrder.setEmployee(oldOrder.getEmployee());
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
+
+        List<PurchaseOrderLine> oldLines = purchaseOrderLineRepository.findByPurchaseOrderId(purchaseOrder.getId());
+        purchaseOrderLineRepository.deleteAll(oldLines);
+
+        List<PurchaseOrderLine> newLines = new ArrayList<>();
+        for (PurchaseOrderLineDTO lineDTO : purchaseOrderDTO.getPurchaseOrderLines()) {
+            PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
+            line.setPurchaseOrder(purchaseOrder);
+            newLines.add(line);
+        }
+        purchaseOrderLineRepository.saveAll(newLines);
+
         return purchaseOrderMapper.toDto(purchaseOrder);
     }
 
@@ -154,22 +263,71 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         return purchaseOrderRepository
             .findById(purchaseOrderDTO.getId())
-            .map(existingPurchaseOrder -> {
-                // CHẶN BẢO MẬT: Không cho phép đổi trạng thái lén lút qua PATCH
-                if (purchaseOrderDTO.getStatus() != null && existingPurchaseOrder.getStatus() != purchaseOrderDTO.getStatus()) {
+            .map(existingOrder -> {
+                validatePurchaserAccess(existingOrder.getWarehouse().getId());
+                checkOrderOwnership(existingOrder);
+
+                if (existingOrder.getStatus() != OrderStatus.DRAFT) {
                     throw new BadRequestAlertException(
-                        "Không được phép thay đổi trạng thái đơn hàng ở đây!",
+                        "Chỉ được phép chỉnh sửa đơn hàng ở trạng thái NHÁP!",
                         ENTITY_NAME,
-                        "status_change_forbidden"
+                        "cannot_edit_processed_order"
                     );
                 }
 
-                purchaseOrderMapper.partialUpdate(existingPurchaseOrder, purchaseOrderDTO);
+                if (
+                    purchaseOrderDTO.getWarehouse() != null &&
+                    !purchaseOrderDTO.getWarehouse().getId().equals(existingOrder.getWarehouse().getId())
+                ) {
+                    throw new BadRequestAlertException("Không được phép thay đổi kho nhập!", ENTITY_NAME, "warehouse_immutable");
+                }
+                if (purchaseOrderDTO.getPoCode() != null && !purchaseOrderDTO.getPoCode().equals(existingOrder.getPoCode())) {
+                    throw new BadRequestAlertException("Không được phép thay đổi mã đơn!", ENTITY_NAME, "po_code_immutable");
+                }
+                if (purchaseOrderDTO.getStatus() != null && purchaseOrderDTO.getStatus() != OrderStatus.DRAFT) {
+                    throw new BadRequestAlertException("Không được đổi trạng thái qua API này!", ENTITY_NAME, "status_change_forbidden");
+                }
 
-                return existingPurchaseOrder;
+                if (purchaseOrderDTO.getPurchaseOrderLines() != null) {
+                    if (purchaseOrderDTO.getPurchaseOrderLines().isEmpty()) {
+                        throw new BadRequestAlertException("Đơn mua hàng phải có ít nhất một mặt hàng!", ENTITY_NAME, "empty_lines");
+                    }
+                    BigDecimal calculatedTotal = BigDecimal.ZERO;
+                    for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
+                        if (line.getUnitPrice() == null || line.getQuantity() == null) {
+                            throw new BadRequestAlertException(
+                                "Mặt hàng không được để trống đơn giá hoặc số lượng!",
+                                ENTITY_NAME,
+                                "invalid_line_data"
+                            );
+                        }
+                        calculatedTotal = calculatedTotal.add(line.getUnitPrice().multiply(new BigDecimal(line.getQuantity())));
+                    }
+                    if (purchaseOrderDTO.getTotalAmount() != null && purchaseOrderDTO.getTotalAmount().compareTo(calculatedTotal) != 0) {
+                        throw new BadRequestAlertException("Tổng tiền đơn hàng không hợp lệ!", ENTITY_NAME, "total_amount_mismatch");
+                    }
+                    purchaseOrderDTO.setTotalAmount(calculatedTotal);
+                }
+
+                purchaseOrderMapper.partialUpdate(existingOrder, purchaseOrderDTO);
+                return existingOrder;
             })
             .map(purchaseOrderRepository::save)
-            .map(purchaseOrderMapper::toDto);
+            .map(savedOrder -> {
+                if (purchaseOrderDTO.getPurchaseOrderLines() != null) {
+                    List<PurchaseOrderLine> oldLines = purchaseOrderLineRepository.findByPurchaseOrderId(savedOrder.getId());
+                    purchaseOrderLineRepository.deleteAll(oldLines);
+
+                    List<PurchaseOrderLine> newLines = new ArrayList<>();
+                    for (PurchaseOrderLineDTO lineDTO : purchaseOrderDTO.getPurchaseOrderLines()) {
+                        PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
+                        line.setPurchaseOrder(savedOrder);
+                        newLines.add(line);
+                    }
+                    purchaseOrderLineRepository.saveAll(newLines);
+                }
+                return purchaseOrderMapper.toDto(savedOrder);
+            });
     }
 
     @Override
@@ -184,13 +342,11 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         return getFilteredPurchaseOrders(pageable, true);
     }
 
-    // Hàm dùng chung cho code sạch sẽ
     private Page<PurchaseOrderDTO> getFilteredPurchaseOrders(Pageable pageable, boolean eager) {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
 
-        // TẦNG 1: Admin hoặc Kế toán -> Xem tất
         if (isAdmin || isAccountant) {
             if (eager) return purchaseOrderRepository.findAllWithEagerRelationships(pageable).map(purchaseOrderMapper::toDto);
             return purchaseOrderRepository.findAll(pageable).map(purchaseOrderMapper::toDto);
@@ -198,12 +354,10 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
 
-        // TẦNG 2: Trưởng phòng -> Xem của cả phòng
         if (isManager) {
-            return purchaseOrderRepository.findAllByEmployeeDepartment(currentUserLogin, pageable).map(purchaseOrderMapper::toDto);
+            return purchaseOrderRepository.findAllByEmployeeScopedWarehouse(currentUserLogin, pageable).map(purchaseOrderMapper::toDto);
         }
 
-        // TẦNG 3: Purchaser (nhân viên mua hàng) -> Chỉ xem của mình
         return purchaseOrderRepository.findAllByEmployeeUserLogin(currentUserLogin, pageable).map(purchaseOrderMapper::toDto);
     }
 
@@ -216,91 +370,65 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
 
-        // TẦNG 1
         if (isAdmin || isAccountant) {
             return purchaseOrderRepository.findOneWithEagerRelationships(id).map(purchaseOrderMapper::toDto);
         }
 
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow();
 
-        // TẦNG 2
         if (isManager) {
-            return purchaseOrderRepository.findOneByEmployeeDepartment(id, currentUserLogin).map(purchaseOrderMapper::toDto);
+            return purchaseOrderRepository.findOneByIdAndEmployeeScopedWarehouse(id, currentUserLogin).map(purchaseOrderMapper::toDto);
         }
 
-        // TẦNG 3: Với Purchaser -> Filter ngay trên memory
-        Optional<PurchaseOrder> orderOpt = purchaseOrderRepository.findOneWithEagerRelationships(id);
-        return orderOpt
-            .filter(order ->
-                order.getEmployee() != null &&
-                order.getEmployee().getUser() != null &&
-                currentUserLogin.equals(order.getEmployee().getUser().getLogin())
-            )
-            .map(purchaseOrderMapper::toDto);
+        return purchaseOrderRepository.findOneByIdAndEmployeeUserLogin(id, currentUserLogin).map(purchaseOrderMapper::toDto);
     }
 
     @Override
     public void delete(Long id) {
         log.debug("Request to delete PurchaseOrder : {}", id);
 
-        // 1. Kéo dữ liệu lên để kiểm tra
         PurchaseOrder order = purchaseOrderRepository
             .findById(id)
-            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn mua hàng", "purchaseOrder", "id_not_found"));
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn mua hàng", ENTITY_NAME, "id_not_found"));
 
-        // 2. Chặn xóa chứng từ đã xử lý
+        validatePurchaserAccess(order.getWarehouse().getId());
+        checkOrderOwnership(order);
+
         if (order.getStatus() != OrderStatus.DRAFT) {
             throw new BadRequestAlertException(
-                "Đại kỵ! Chỉ được xóa vĩnh viễn đơn hàng ở trạng thái NHÁP (DRAFT). Hãy dùng tính năng HỦY (CANCEL) để lưu vết!",
-                "purchaseOrder",
+                "Đại kỵ! Chỉ được xóa vĩnh viễn đơn hàng ở trạng thái NHÁP (DRAFT)!",
+                ENTITY_NAME,
                 "cannot_delete_processed_order"
             );
         }
 
-        // 3. Phân quyền: Cấm Purchaser xóa đơn nháp của người khác
-        if (
-            !SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN) &&
-            !SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER)
-        ) {
-            String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow();
-            if (
-                order.getEmployee() == null ||
-                order.getEmployee().getUser() == null ||
-                !order.getEmployee().getUser().getLogin().equals(currentUserLogin)
-            ) {
-                throw new BadRequestAlertException("Bạn không có quyền xóa đơn nháp của người khác!", "purchaseOrder", "access_denied");
-            }
-        }
-
-        // 4. Cho phép xóa
+        List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(id);
+        purchaseOrderLineRepository.deleteAll(lines);
         purchaseOrderRepository.deleteById(id);
     }
 
-    /**
-     * Hàm chuyên dụng để Duyệt đơn và Nhập kho
-     */
+    @Transactional
     @Override
     public PurchaseOrderDTO approveOrder(Long id) {
         log.debug("Request to approve PurchaseOrder : {}", id);
 
         PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng"));
 
+        validatePurchaserAccess(order.getWarehouse().getId());
+
         if (order.getStatus() == OrderStatus.APPROVED) {
             throw new BadRequestAlertException("Đơn hàng này đã được duyệt rồi!", ENTITY_NAME, "already_approved");
         }
 
-        // 1. Đổi trạng thái sang Đã duyệt
         order.setStatus(OrderStatus.APPROVED);
         order = purchaseOrderRepository.save(order);
 
-        // 2. Gọi hàm Bơm hàng vào kho (cái hàm processInboundInventory bác giữ nguyên nhé)
         processInboundInventory(order);
 
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         String creatorLogin = (order.getEmployee() != null && order.getEmployee().getUser() != null)
             ? order.getEmployee().getUser().getLogin()
             : currentLogin;
-
         eventPublisher.publishEvent(
             new OrderNotificationEvent("PURCHASE", "APPROVED", order.getId(), order.getPoCode(), currentLogin, creatorLogin)
         );
@@ -309,54 +437,72 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     }
 
     /**
-     * Hàm tự động sinh Lịch sử và Cộng Tồn kho khi Đơn mua hàng được duyệt
+     * Hàm gom Batch Update chống N+1 để Nhập kho
      */
     private void processInboundInventory(PurchaseOrder order) {
         log.debug("Bắt đầu xử lý nhập kho cho Đơn mua hàng: {}", order.getPoCode());
 
-        // 1. Lấy danh sách các mặt hàng trong đơn này
         List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(order.getId());
+        if (lines.isEmpty()) return;
+
+        List<Long> productIds = lines.stream().map(line -> line.getProduct().getId()).collect(Collectors.toList());
+
+        // Kéo tồn kho lên RAM
+        Map<Long, InventoryBalance> balanceMap = inventoryBalanceRepository
+            .findByWarehouseIdAndProductIdIn(order.getWarehouse().getId(), productIds)
+            .stream()
+            .collect(Collectors.toMap(b -> b.getProduct().getId(), b -> b));
+
+        List<InventoryBalance> newBalances = new ArrayList<>();
+        List<InventoryTransaction> transactionsToSave = new ArrayList<>();
+        Instant now = Instant.now();
 
         for (PurchaseOrderLine line : lines) {
-            // 2. Ghi nhận Lịch sử giao dịch (Transaction)
+            Long productId = line.getProduct().getId();
+            InventoryBalance balance = balanceMap.get(productId);
+
+            if (balance != null) {
+                // Hàng đã từng tồn tại -> Cộng thêm
+                balance.setQuantity(balance.getQuantity() + line.getQuantity());
+            } else {
+                // Hàng mới tinh -> Tạo dòng tồn kho mới
+                balance = new InventoryBalance();
+                balance.setProduct(line.getProduct());
+                balance.setWarehouse(order.getWarehouse());
+                balance.setQuantity(line.getQuantity());
+                newBalances.add(balance);
+            }
+
+            // Thẻ kho: NHẬP KHO (RECEIPT)
             InventoryTransaction transaction = new InventoryTransaction();
-            transaction.setType(TransactionType.RECEIPT); // Loại hình: NHẬP KHO
+            transaction.setType(TransactionType.RECEIPT);
             transaction.setQuantity(line.getQuantity());
             transaction.setUnitCost(line.getUnitPrice());
             transaction.setReferenceId(order.getId());
-            transaction.setCreatedDate(Instant.now());
+            transaction.setCreatedDate(now);
             transaction.setProduct(line.getProduct());
             transaction.setWarehouse(order.getWarehouse());
-
-            inventoryTransactionRepository.save(transaction);
-
-            // 3. Cập nhật cục Tồn kho (Balance)
-            // Tìm xem sản phẩm này trong kho này đã có record nào chưa?
-            Optional<InventoryBalance> existingBalance = inventoryBalanceRepository.findOneByProductIdAndWarehouseId(
-                line.getProduct().getId(),
-                order.getWarehouse().getId()
-            );
-
-            if (existingBalance.isPresent()) {
-                // Đã có hàng -> Cộng dồn số lượng
-                InventoryBalance balance = existingBalance.get();
-                balance.setQuantity(balance.getQuantity() + line.getQuantity());
-                inventoryBalanceRepository.save(balance);
-            } else {
-                // Chưa từng có mặt hàng này ở kho này -> Tạo dòng mới
-                InventoryBalance newBalance = new InventoryBalance();
-                newBalance.setProduct(line.getProduct());
-                newBalance.setWarehouse(order.getWarehouse());
-                newBalance.setQuantity(line.getQuantity());
-                inventoryBalanceRepository.save(newBalance);
-            }
+            transactionsToSave.add(transaction);
         }
-        log.debug("Hoàn tất nhập kho thành công!");
+
+        try {
+            inventoryBalanceRepository.saveAll(balanceMap.values()); // Lưu những thằng cập nhật
+            inventoryBalanceRepository.saveAll(newBalances); // Lưu những thằng mới
+            inventoryTransactionRepository.saveAll(transactionsToSave);
+
+            inventoryBalanceRepository.flush();
+            inventoryTransactionRepository.flush();
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+            log.error("Lỗi xung đột dữ liệu (Optimistic Locking) khi nhập kho đơn mua hàng: {}", e.getMessage());
+            throw new BadRequestAlertException(
+                "Dữ liệu tồn kho bị biến động bởi giao dịch khác. Vui lòng thử lại!",
+                ENTITY_NAME,
+                "optimistic_locking_inventory_conflict"
+            );
+        }
     }
 
-    /**
-     * Hàm Chốt đơn và Ghi nhận Công nợ Phải Trả
-     */
+    @Transactional
     @Override
     public PurchaseOrderDTO completeOrder(Long id) {
         log.debug("Request to complete PurchaseOrder : {}", id);
@@ -364,30 +510,49 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy đơn mua hàng"));
 
         if (order.getStatus() == OrderStatus.COMPLETED) {
-            throw new BadRequestAlertException("Đơn hàng này đã được hoàn thành trước đó!", "purchaseOrder", "already_completed");
+            throw new BadRequestAlertException("Đơn hàng này đã được hoàn thành trước đó!", ENTITY_NAME, "already_completed");
         }
         if (order.getStatus() != OrderStatus.APPROVED) {
-            throw new BadRequestAlertException("Chỉ có thể hoàn thành đơn hàng đã duyệt (APPROVED)!", "purchaseOrder", "invalid_status");
+            throw new BadRequestAlertException(
+                "Chỉ có thể hoàn thành đơn hàng đã duyệt nhập kho (APPROVED)!",
+                ENTITY_NAME,
+                "invalid_status"
+            );
         }
 
-        order.setStatus(OrderStatus.COMPLETED);
-        order = purchaseOrderRepository.save(order);
-
-        // 3. Ghi nợ cho Nhà cung cấp
         Supplier supplier = order.getSupplier();
-        if (supplier != null) {
-            BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
-            BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-
-            // Nợ phải trả mới = Nợ cũ + Tiền đơn hàng
-            supplier.setCurrentDebt(currentDebt.add(orderTotal));
-            supplierRepository.save(supplier);
+        if (supplier == null) {
+            throw new BadRequestAlertException(
+                "Lỗi dữ liệu: Đơn mua hàng không có thông tin Nhà cung cấp!",
+                ENTITY_NAME,
+                "supplier_missing"
+            );
         }
+
+        BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
+        BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+
+        // Cộng nợ nhà cung cấp
+        supplier.setCurrentDebt(currentDebt.add(orderTotal));
+        order.setStatus(OrderStatus.COMPLETED);
+
+        try {
+            supplierRepository.save(supplier);
+            order = purchaseOrderRepository.save(order);
+            supplierRepository.flush();
+        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+            log.error("Xung đột dữ liệu khi cập nhật công nợ nhà cung cấp: {}", e.getMessage());
+            throw new BadRequestAlertException(
+                "Công nợ của Nhà cung cấp này đang bị biến động. Vui lòng thử lại!",
+                ENTITY_NAME,
+                "optimistic_locking_supplier_debt"
+            );
+        }
+
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         String creatorLogin = (order.getEmployee() != null && order.getEmployee().getUser() != null)
             ? order.getEmployee().getUser().getLogin()
             : currentLogin;
-
         eventPublisher.publishEvent(
             new OrderNotificationEvent("PURCHASE", "COMPLETED", order.getId(), order.getPoCode(), currentLogin, creatorLogin)
         );
@@ -395,9 +560,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         return purchaseOrderMapper.toDto(order);
     }
 
-    /**
-     * Hàm Hủy Đơn Mua Hàng và dọn dẹp dữ liệu (Xuất trả hàng, Giảm nợ)
-     */
+    @Transactional
     @Override
     public PurchaseOrderDTO cancelOrder(Long id) {
         log.debug("Request to cancel PurchaseOrder : {}", id);
@@ -405,55 +568,109 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy đơn mua hàng"));
 
         if (order.getStatus() == OrderStatus.CANCELLED) {
-            throw new BadRequestAlertException("Đơn hàng này đã bị hủy từ trước!", "purchaseOrder", "already_cancelled");
+            throw new BadRequestAlertException("Đơn hàng này đã bị hủy từ trước!", ENTITY_NAME, "already_cancelled");
         }
 
-        // 1. NẾU ĐƠN ĐÃ COMPLETED -> XÓA NỢ CHO NHÀ CUNG CẤP
+        // --- PHÂN QUYỀN ĐỘNG THEO TRẠNG THÁI ---
+        boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
+        boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
+        boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            if (!isAdmin && !isAccountant) {
+                throw new BadRequestAlertException(
+                    "Đơn hàng đã chốt công nợ. Vui lòng liên hệ Kế toán để hủy!",
+                    ENTITY_NAME,
+                    "accountant_required_for_cancel"
+                );
+            }
+        } else {
+            if (!isAdmin && !isManager) {
+                throw new BadRequestAlertException(
+                    "Chỉ Quản lý chi nhánh hoặc Admin mới được hủy đơn ở giai đoạn này!",
+                    ENTITY_NAME,
+                    "manager_required_for_cancel"
+                );
+            }
+            if (isManager) {
+                validatePurchaserAccess(order.getWarehouse().getId());
+            }
+        }
+
+        // 1. ĐẢO NGƯỢC CÔNG NỢ NHÀ CUNG CẤP
         if (order.getStatus() == OrderStatus.COMPLETED) {
             Supplier supplier = order.getSupplier();
             if (supplier != null) {
                 BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
                 BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
 
-                // Trừ đi khoản nợ mình đã lỡ cộng vào
                 supplier.setCurrentDebt(currentDebt.subtract(orderTotal));
-                supplierRepository.save(supplier);
+                try {
+                    supplierRepository.save(supplier);
+                    supplierRepository.flush();
+                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
+                    throw new BadRequestAlertException(
+                        "Xung đột dữ liệu công nợ nhà cung cấp!",
+                        ENTITY_NAME,
+                        "optimistic_locking_supplier_debt"
+                    );
+                }
             }
         }
 
-        // 2. NẾU ĐƠN ĐÃ APPROVED HOẶC COMPLETED -> XUẤT TRẢ LẠI TỒN KHO
+        // 2. ĐẢO NGƯỢC TỒN KHO (XUẤT TRẢ HÀNG LẠI CHO NHÀ CUNG CẤP)
         if (order.getStatus() == OrderStatus.APPROVED || order.getStatus() == OrderStatus.COMPLETED) {
             List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(order.getId());
 
-            for (PurchaseOrderLine line : lines) {
-                InventoryBalance balance = inventoryBalanceRepository
-                    .findOneByProductIdAndWarehouseId(line.getProduct().getId(), order.getWarehouse().getId())
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy tồn kho để xuất trả"));
+            if (!lines.isEmpty()) {
+                List<Long> productIds = lines.stream().map(line -> line.getProduct().getId()).collect(Collectors.toList());
+                Map<Long, InventoryBalance> balanceMap = inventoryBalanceRepository
+                    .findByWarehouseIdAndProductIdIn(order.getWarehouse().getId(), productIds)
+                    .stream()
+                    .collect(Collectors.toMap(b -> b.getProduct().getId(), b -> b));
 
-                // Trừ đi số lượng hàng mình trả lại cho Supplier
-                if (balance.getQuantity() < line.getQuantity()) {
+                List<InventoryTransaction> issueTransactions = new ArrayList<>();
+                Instant now = Instant.now();
+
+                for (PurchaseOrderLine line : lines) {
+                    InventoryBalance balance = balanceMap.get(line.getProduct().getId());
+                    if (balance == null || balance.getQuantity() < line.getQuantity()) {
+                        throw new BadRequestAlertException(
+                            "Tồn kho của " + line.getProduct().getName() + " hiện tại không đủ để xuất trả nhà cung cấp!",
+                            ENTITY_NAME,
+                            "insufficient_stock_to_return"
+                        );
+                    }
+
+                    // Trừ kho (Vì đang Hủy Nhập = Xuất trả)
+                    balance.setQuantity(balance.getQuantity() - line.getQuantity());
+
+                    InventoryTransaction issueTx = new InventoryTransaction();
+                    issueTx.setType(TransactionType.ISSUE);
+                    issueTx.setQuantity(line.getQuantity());
+                    issueTx.setUnitCost(line.getUnitPrice());
+                    issueTx.setReferenceId(order.getId());
+                    issueTx.setCreatedDate(now);
+                    issueTx.setProduct(line.getProduct());
+                    issueTx.setWarehouse(order.getWarehouse());
+                    issueTransactions.add(issueTx);
+                }
+
+                try {
+                    inventoryBalanceRepository.saveAll(balanceMap.values());
+                    inventoryTransactionRepository.saveAll(issueTransactions);
+                    inventoryBalanceRepository.flush();
+                    inventoryTransactionRepository.flush();
+                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
                     throw new BadRequestAlertException(
-                        "Tồn kho hiện tại không đủ để xuất trả!",
-                        "purchaseOrder",
-                        "insufficient_stock_to_return"
+                        "Xung đột dữ liệu tồn kho khi xuất trả hàng!",
+                        ENTITY_NAME,
+                        "optimistic_locking_inventory_conflict"
                     );
                 }
-                balance.setQuantity(balance.getQuantity() - line.getQuantity());
-                inventoryBalanceRepository.save(balance);
-
-                // Ghi lại lịch sử (Loại ISSUE - Xuất kho trả hàng)
-                InventoryTransaction issueTx = new InventoryTransaction();
-                issueTx.setType(TransactionType.ISSUE);
-                issueTx.setQuantity(line.getQuantity());
-                issueTx.setReferenceId(order.getId());
-                issueTx.setCreatedDate(Instant.now());
-                issueTx.setProduct(line.getProduct());
-                issueTx.setWarehouse(order.getWarehouse());
-                inventoryTransactionRepository.save(issueTx);
             }
         }
 
-        // 3. ĐỔI TRẠNG THÁI
         order.setStatus(OrderStatus.CANCELLED);
         order = purchaseOrderRepository.save(order);
 
@@ -461,7 +678,6 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         String creatorLogin = (order.getEmployee() != null && order.getEmployee().getUser() != null)
             ? order.getEmployee().getUser().getLogin()
             : currentLogin;
-
         eventPublisher.publishEvent(
             new OrderNotificationEvent("PURCHASE", "CANCELLED", order.getId(), order.getPoCode(), currentLogin, creatorLogin)
         );

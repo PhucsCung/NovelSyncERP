@@ -56,6 +56,17 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
     )
     Page<SalesOrder> findAllByEmployeeUserLogin(@Param("login") String login, Pageable pageable);
 
+    // Dành riêng cho Sales - Lọc chi tiết 1 đơn hàng theo chính User tạo ra nó
+    @Query(
+        "select distinct salesOrder from SalesOrder salesOrder " +
+        "left join fetch salesOrder.customer " +
+        "left join fetch salesOrder.employee e " +
+        "left join fetch e.user u " +
+        "left join fetch salesOrder.warehouse " +
+        "where salesOrder.id = :id and u.login = :login"
+    )
+    Optional<SalesOrder> findOneByIdAndEmployeeUserLogin(@Param("id") Long id, @Param("login") String login);
+
     //Lọc danh sách đơn hàng theo Kho của Manager đang đăng nhập
     @Query(
         value = "select distinct salesOrder from SalesOrder salesOrder " +
@@ -80,11 +91,4 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
         "salesOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)"
     )
     Optional<SalesOrder> findOneByIdAndEmployeeScopedWarehouse(@Param("id") Long id, @Param("login") String login);
-
-    //Dành riêng cho Sales - Chỉ lấy đơn do chính họ tạo ra
-    @Query("select s from SalesOrder s left join fetch s.customer left join fetch s.warehouse where s.createdBy = :login")
-    Page<SalesOrder> findAllByCreatedBy(@Param("login") String login, Pageable pageable);
-
-    @Query("select s from SalesOrder s left join fetch s.customer left join fetch s.warehouse where s.id = :id and s.createdBy = :login")
-    Optional<SalesOrder> findOneByIdAndCreatedBy(@Param("id") Long id, @Param("login") String login);
 }
