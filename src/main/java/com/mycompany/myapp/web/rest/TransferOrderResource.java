@@ -181,6 +181,8 @@ public class TransferOrderResource {
         "\", \"" +
         AuthoritiesConstants.MANAGER +
         "\", \"" +
+        AuthoritiesConstants.SHIPPER +
+        "\", \"" +
         AuthoritiesConstants.WAREHOUSE +
         "\")"
     )
@@ -211,6 +213,8 @@ public class TransferOrderResource {
         AuthoritiesConstants.ADMIN +
         "\", \"" +
         AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.SHIPPER +
         "\", \"" +
         AuthoritiesConstants.WAREHOUSE +
         "\")"
@@ -277,5 +281,23 @@ public class TransferOrderResource {
             .ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, id.toString()))
             .body(result);
+    }
+
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.SHIPPER + "\")")
+    @PutMapping("/transfer-orders/{id}/start-delivery")
+    public ResponseEntity<TransferOrderDTO> startDelivery(@PathVariable Long id) {
+        return ResponseEntity.ok().body(transferOrderService.startDelivery(id));
+    }
+
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.SHIPPER + "\")")
+    @PutMapping("/transfer-orders/{id}/confirm-delivery")
+    public ResponseEntity<TransferOrderDTO> confirmDelivery(@PathVariable Long id) {
+        return ResponseEntity.ok().body(transferOrderService.confirmDelivery(id));
+    }
+
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.MANAGER + "\")")
+    @PutMapping("/transfer-orders/{id}/complete")
+    public ResponseEntity<TransferOrderDTO> completeTransferOrder(@PathVariable Long id) {
+        return ResponseEntity.ok().body(transferOrderService.completeOrder(id));
     }
 }

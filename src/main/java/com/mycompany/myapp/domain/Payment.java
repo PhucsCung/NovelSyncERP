@@ -1,9 +1,9 @@
 package com.mycompany.myapp.domain;
 
+import com.mycompany.myapp.domain.enumeration.PaymentStatus;
 import com.mycompany.myapp.domain.enumeration.PaymentType;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.time.Instant;
 import javax.persistence.*;
 import javax.validation.constraints.*;
 import org.hibernate.annotations.Cache;
@@ -16,7 +16,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Table(name = "payment")
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @SuppressWarnings("common-java:DuplicatedBlocks")
-public class Payment implements Serializable {
+public class Payment extends AbstractAuditingEntity<Long> implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -42,8 +42,12 @@ public class Payment implements Serializable {
     private Long referenceOrderId;
 
     @NotNull
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private PaymentStatus status;
+
+    @Column(name = "note", length = 1000)
+    private String note;
 
     @ManyToOne
     private Customer customer;
@@ -51,8 +55,7 @@ public class Payment implements Serializable {
     @ManyToOne
     private Supplier supplier;
 
-    // jhipster-needle-entity-add-field - JHipster will add fields here
-
+    @Override
     public Long getId() {
         return this.id;
     }
@@ -118,17 +121,30 @@ public class Payment implements Serializable {
         this.referenceOrderId = referenceOrderId;
     }
 
-    public Instant getCreatedAt() {
-        return this.createdAt;
+    public PaymentStatus getStatus() {
+        return this.status;
     }
 
-    public Payment createdAt(Instant createdAt) {
-        this.setCreatedAt(createdAt);
+    public Payment status(PaymentStatus status) {
+        this.setStatus(status);
         return this;
     }
 
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
+    public void setStatus(PaymentStatus status) {
+        this.status = status;
+    }
+
+    public String getNote() {
+        return this.note;
+    }
+
+    public Payment note(String note) {
+        this.setNote(note);
+        return this;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
     }
 
     public Customer getCustomer() {
@@ -157,8 +173,6 @@ public class Payment implements Serializable {
         return this;
     }
 
-    // jhipster-needle-entity-add-getters-setters - JHipster will add getters and setters here
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -172,20 +186,32 @@ public class Payment implements Serializable {
 
     @Override
     public int hashCode() {
-        // see https://vladmihalcea.com/how-to-implement-equals-and-hashcode-using-the-jpa-entity-identifier/
         return getClass().hashCode();
     }
 
-    // prettier-ignore
     @Override
     public String toString() {
-        return "Payment{" +
-            "id=" + getId() +
-            ", paymentCode='" + getPaymentCode() + "'" +
-            ", type='" + getType() + "'" +
-            ", amount=" + getAmount() +
-            ", referenceOrderId=" + getReferenceOrderId() +
-            ", createdAt='" + getCreatedAt() + "'" +
-            "}";
+        return (
+            "Payment{" +
+            "id=" +
+            getId() +
+            ", paymentCode='" +
+            getPaymentCode() +
+            "'" +
+            ", type='" +
+            getType() +
+            "'" +
+            ", amount=" +
+            getAmount() +
+            ", referenceOrderId=" +
+            getReferenceOrderId() +
+            ", status='" +
+            getStatus() +
+            "'" +
+            ", note='" +
+            getNote() +
+            "'" +
+            "}"
+        );
     }
 }

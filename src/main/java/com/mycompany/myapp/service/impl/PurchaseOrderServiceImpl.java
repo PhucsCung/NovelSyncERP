@@ -423,12 +423,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         order.setStatus(OrderStatus.APPROVED);
         order = purchaseOrderRepository.save(order);
 
-        processInboundInventory(order);
-
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
-        String creatorLogin = (order.getEmployee() != null && order.getEmployee().getUser() != null)
-            ? order.getEmployee().getUser().getLogin()
-            : currentLogin;
+        String creatorLogin = order.getEmployee().getUser().getLogin();
         eventPublisher.publishEvent(
             new OrderNotificationEvent("PURCHASE", "APPROVED", order.getId(), order.getPoCode(), currentLogin, creatorLogin)
         );
@@ -512,13 +508,14 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         if (order.getStatus() == OrderStatus.COMPLETED) {
             throw new BadRequestAlertException("Đơn hàng này đã được hoàn thành trước đó!", ENTITY_NAME, "already_completed");
         }
-        if (order.getStatus() != OrderStatus.APPROVED) {
+        if (order.getStatus() != OrderStatus.PROCESSING) {
             throw new BadRequestAlertException(
-                "Chỉ có thể hoàn thành đơn hàng đã duyệt nhập kho (APPROVED)!",
+                "Chỉ có thể chốt đơn khi hàng đang được Shipper chở về kho (PROCESSING)!",
                 ENTITY_NAME,
                 "invalid_status"
             );
         }
+        processInboundInventory(order);
 
         Supplier supplier = order.getSupplier();
         if (supplier == null) {
@@ -571,55 +568,33 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new BadRequestAlertException("Đơn hàng này đã bị hủy từ trước!", ENTITY_NAME, "already_cancelled");
         }
 
-        // --- PHÂN QUYỀN ĐỘNG THEO TRẠNG THÁI ---
+        // CHỐT CHẶN CỨNG: CẤM HỦY ĐƠN ĐÃ COMPLETED
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            throw new BadRequestAlertException(
+                "Không thể hủy đơn mua hàng đã HOÀN THÀNH (Đã chốt công nợ). Vui lòng sử dụng quy trình Trả Hàng (Return Order)!",
+                ENTITY_NAME,
+                "cannot_cancel_completed_order"
+            );
+        }
+
+        // PHÂN QUYỀN ĐỘNG
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
-        boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
 
-        if (order.getStatus() == OrderStatus.COMPLETED) {
-            if (!isAdmin && !isAccountant) {
-                throw new BadRequestAlertException(
-                    "Đơn hàng đã chốt công nợ. Vui lòng liên hệ Kế toán để hủy!",
-                    ENTITY_NAME,
-                    "accountant_required_for_cancel"
-                );
-            }
-        } else {
-            if (!isAdmin && !isManager) {
-                throw new BadRequestAlertException(
-                    "Chỉ Quản lý chi nhánh hoặc Admin mới được hủy đơn ở giai đoạn này!",
-                    ENTITY_NAME,
-                    "manager_required_for_cancel"
-                );
-            }
-            if (isManager) {
-                validatePurchaserAccess(order.getWarehouse().getId());
-            }
+        if (!isAdmin && !isManager) {
+            throw new BadRequestAlertException(
+                "Chỉ Quản lý chi nhánh hoặc Admin mới được hủy đơn ở giai đoạn này!",
+                ENTITY_NAME,
+                "manager_required_for_cancel"
+            );
         }
 
-        // 1. ĐẢO NGƯỢC CÔNG NỢ NHÀ CUNG CẤP
-        if (order.getStatus() == OrderStatus.COMPLETED) {
-            Supplier supplier = order.getSupplier();
-            if (supplier != null) {
-                BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
-                BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-
-                supplier.setCurrentDebt(currentDebt.subtract(orderTotal));
-                try {
-                    supplierRepository.save(supplier);
-                    supplierRepository.flush();
-                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-                    throw new BadRequestAlertException(
-                        "Xung đột dữ liệu công nợ nhà cung cấp!",
-                        ENTITY_NAME,
-                        "optimistic_locking_supplier_debt"
-                    );
-                }
-            }
+        if (isManager) {
+            validatePurchaserAccess(order.getWarehouse().getId());
         }
 
-        // 2. ĐẢO NGƯỢC TỒN KHO (XUẤT TRẢ HÀNG LẠI CHO NHÀ CUNG CẤP)
-        if (order.getStatus() == OrderStatus.APPROVED || order.getStatus() == OrderStatus.COMPLETED) {
+        // ĐẢO NGƯỢC TỒN KHO (Chỉ áp dụng khi đơn đã APPROVED vì đã lỡ nhập kho)
+        if (order.getStatus() == OrderStatus.APPROVED) {
             List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(order.getId());
 
             if (!lines.isEmpty()) {
@@ -671,9 +646,11 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             }
         }
 
+        // CHUYỂN TRẠNG THÁI VÀ LƯU PHIẾU
         order.setStatus(OrderStatus.CANCELLED);
         order = purchaseOrderRepository.save(order);
 
+        // BẮN SỰ KIỆN THÔNG BÁO
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         String creatorLogin = (order.getEmployee() != null && order.getEmployee().getUser() != null)
             ? order.getEmployee().getUser().getLogin()
@@ -682,6 +659,60 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             new OrderNotificationEvent("PURCHASE", "CANCELLED", order.getId(), order.getPoCode(), currentLogin, creatorLogin)
         );
 
+        return purchaseOrderMapper.toDto(order);
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderDTO startDelivery(Long id) {
+        log.debug("Shipper bắt đầu lấy hàng từ Supplier cho đơn: {}", id);
+        PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow();
+
+        if (order.getStatus() != OrderStatus.APPROVED) {
+            throw new BadRequestAlertException(
+                "Chỉ có thể đi lấy hàng khi đơn đã được duyệt mua (APPROVED)!",
+                ENTITY_NAME,
+                "invalid_status"
+            );
+        }
+
+        order.setStatus(OrderStatus.PROCESSING); // Hàng đang trên xe
+        order = purchaseOrderRepository.save(order);
+
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "PURCHASE",
+                "PROCESSING",
+                order.getId(),
+                "Shipper đang chở hàng về kho",
+                "System",
+                order.getEmployee().getUser().getLogin()
+            )
+        );
+        return purchaseOrderMapper.toDto(order);
+    }
+
+    @Transactional
+    @Override
+    public PurchaseOrderDTO confirmDelivery(Long id) {
+        log.debug("Shipper báo cáo hàng đã về tới kho: {}", id);
+        PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow();
+
+        if (order.getStatus() != OrderStatus.PROCESSING) {
+            throw new BadRequestAlertException("Đơn hàng chưa ở trạng thái Đang giao!", ENTITY_NAME, "invalid_status");
+        }
+
+        // Bắn Noti gọi Thủ kho ra nhận hàng, Kế toán chuẩn bị chốt tiền
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "PURCHASE",
+                "ARRIVED",
+                order.getId(),
+                "Xe hàng " + order.getPoCode() + " đã về tới. Thủ kho ra nhận hàng!",
+                "System",
+                "WAREHOUSE_GROUP"
+            )
+        );
         return purchaseOrderMapper.toDto(order);
     }
 }

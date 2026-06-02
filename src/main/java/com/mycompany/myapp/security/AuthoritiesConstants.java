@@ -16,6 +16,7 @@ public final class AuthoritiesConstants {
     public static final String WAREHOUSE = "ROLE_WAREHOUSE";
     public static final String ACCOUNTANT = "ROLE_ACCOUNTANT";
     public static final String MANAGER = "ROLE_MANAGER";
+    public static final String SHIPPER = "ROLE_SHIPPER";
 
     private AuthoritiesConstants() {}
 }

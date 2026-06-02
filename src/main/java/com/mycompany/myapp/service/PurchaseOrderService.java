@@ -74,4 +74,7 @@ public interface PurchaseOrderService {
     PurchaseOrderDTO completeOrder(Long id);
 
     PurchaseOrderDTO cancelOrder(Long id);
+
+    PurchaseOrderDTO startDelivery(Long id); // Shipper lấy hàng từ Supplier
+    PurchaseOrderDTO confirmDelivery(Long id); // Shipper báo hàng về tới Kho
 }

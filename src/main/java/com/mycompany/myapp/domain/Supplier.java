@@ -49,7 +49,22 @@ public class Supplier implements Serializable {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "address")
+    private String address;
+
     // ... (Bác nhớ Generate thêm hàm getVersion() và setVersion() ở dưới cùng nữa nhé)
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public Supplier address(String address) { // Đổi thành Supplier nếu ở file Supplier
+        this.address = address;
+        return this;
+    }
 
     public Boolean getIsActive() {
         return isActive;

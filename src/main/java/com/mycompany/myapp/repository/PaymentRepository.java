@@ -38,7 +38,4 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Query("select payment from Payment payment left join fetch payment.customer left join fetch payment.supplier where payment.id =:id")
     Optional<Payment> findOneWithToOneRelationships(@Param("id") Long id);
-
-    // Tìm tất cả phiếu thanh toán theo ID đơn hàng và Loại (Thu/Chi)
-    List<Payment> findByReferenceOrderIdAndType(Long referenceOrderId, PaymentType type);
 }

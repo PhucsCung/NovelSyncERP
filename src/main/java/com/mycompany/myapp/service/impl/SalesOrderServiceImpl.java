@@ -341,6 +341,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         //Admin hoặc Kế toán -> Xem tất cả đơn của mọi chi nhánh
         if (isAdmin || isAccountant) {
@@ -351,7 +352,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
 
         //Quản lý chi nhánh -> CHUYỂN SANG: Chỉ xem đơn thuộc Kho mình phụ trách
-        if (isManager) {
+        if (isManager || isShipper) {
             return salesOrderRepository.findAllByEmployeeScopedWarehouse(currentUserLogin, pageable).map(salesOrderMapper::toDto);
         }
 
@@ -531,7 +532,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         if (order.getStatus() == OrderStatus.COMPLETED) {
             throw new BadRequestAlertException("Đơn hàng này đã được hoàn thành và chốt sổ trước đó!", "salesOrder", "already_completed");
         }
-        if (order.getStatus() != OrderStatus.APPROVED) {
+        if (order.getStatus() != OrderStatus.PROCESSING) {
             throw new BadRequestAlertException(
                 "Chỉ có thể chốt công nợ cho đơn hàng đã xuất kho (APPROVED)!",
                 "salesOrder",
@@ -596,60 +597,34 @@ public class SalesOrderServiceImpl implements SalesOrderService {
             throw new BadRequestAlertException("Đơn hàng này đã bị hủy từ trước!", "salesOrder", "already_cancelled");
         }
 
-        // --- BẮT ĐẦU: PHÂN QUYỀN ĐỘNG THEO TRẠNG THÁI ---
+        // CHỐT CHẶN CỨNG: CẤM HỦY ĐƠN ĐÃ COMPLETED (Phải dùng quy trình Return Order)
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            throw new BadRequestAlertException(
+                "Không thể hủy đơn hàng đã HOÀN THÀNH (Đã chốt công nợ). Vui lòng sử dụng quy trình Trả Hàng (Return Order)!",
+                "salesOrder",
+                "cannot_cancel_completed_order"
+            );
+        }
+
+        // PHÂN QUYỀN ĐỘNG
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
-        boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
 
-        if (order.getStatus() == OrderStatus.COMPLETED) {
-            // Đã chốt nợ -> Lãnh địa của Kế toán
-            if (!isAdmin && !isAccountant) {
-                throw new BadRequestAlertException(
-                    "Đơn hàng đã được Kế toán chốt sổ công nợ. Quản lý chi nhánh không được phép tự ý hủy, vui lòng liên hệ phòng Kế toán!",
-                    "salesOrder",
-                    "accountant_required_for_cancel"
-                );
-            }
-        } else {
-            // Chưa chốt nợ (DRAFT hoặc APPROVED) -> Lãnh địa của Quản lý chi nhánh
-            if (!isAdmin && !isManager) {
-                throw new BadRequestAlertException(
-                    "Chỉ Quản lý chi nhánh hoặc Admin mới có quyền hủy đơn hàng ở giai đoạn này!",
-                    "salesOrder",
-                    "manager_required_for_cancel"
-                );
-            }
-            // Nếu là Manager, bắt buộc phải check xem có đúng chi nhánh của mình không
-            if (isManager) {
-                validateSalesAccess(order.getWarehouse().getId());
-            }
-        }
-        //ĐẢO NGƯỢC CÔNG NỢ (Nếu đã COMPLETED)
-        if (order.getStatus() == OrderStatus.COMPLETED) {
-            Customer customer = order.getCustomer();
-            if (customer != null) {
-                BigDecimal currentDebt = customer.getCurrentDebt() != null ? customer.getCurrentDebt() : BigDecimal.ZERO;
-                BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-
-                // Trừ đi cục nợ đã lỡ cộng trước đó
-                customer.setCurrentDebt(currentDebt.subtract(orderTotal));
-
-                try {
-                    customerRepository.save(customer);
-                    customerRepository.flush();
-                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-                    log.error("Xung đột dữ liệu khi hoàn nợ do hủy đơn: {}", e.getMessage());
-                    throw new BadRequestAlertException(
-                        "Không thể hoàn nợ do dữ liệu Khách hàng đang bị biến động. Vui lòng thử lại!",
-                        "salesOrder",
-                        "optimistic_locking_customer_debt"
-                    );
-                }
-            }
+        if (!isAdmin && !isManager) {
+            throw new BadRequestAlertException(
+                "Chỉ Quản lý chi nhánh hoặc Admin mới có quyền hủy đơn hàng ở giai đoạn này!",
+                "salesOrder",
+                "manager_required_for_cancel"
+            );
         }
 
-        //ĐẢO NGƯỢC TỒN KHO (Nếu đã APPROVED hoặc COMPLETED)
-        if (order.getStatus() == OrderStatus.APPROVED || order.getStatus() == OrderStatus.COMPLETED) {
+        // Nếu là Manager, bắt buộc phải check xem có đúng chi nhánh của mình không
+        if (isManager) {
+            validateSalesAccess(order.getWarehouse().getId());
+        }
+
+        // ĐẢO NGƯỢC TỒN KHO (Chỉ áp dụng khi đơn đã APPROVED vì đã lỡ trừ kho)
+        if (order.getStatus() == OrderStatus.APPROVED || order.getStatus() == OrderStatus.PROCESSING) {
             List<SalesOrderLine> lines = salesOrderLineRepository.findBySalesOrderId(order.getId());
 
             if (!lines.isEmpty()) {
@@ -788,5 +763,70 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 );
             }
         }
+    }
+
+    /**
+     * Shipper xác nhận lấy hàng đi giao (APPROVED -> PROCESSING)
+     */
+    @Transactional
+    @Override
+    public SalesOrderDTO startDelivery(Long id) {
+        log.debug("Shipper bắt đầu giao đơn: {}", id);
+        SalesOrder order = salesOrderRepository
+            .findById(id)
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn", "salesOrder", "id_not_found"));
+
+        if (order.getStatus() != OrderStatus.APPROVED) {
+            throw new BadRequestAlertException("Chỉ có thể lấy đơn đi giao khi kho đã xuất (APPROVED)!", "salesOrder", "invalid_status");
+        }
+
+        order.setStatus(OrderStatus.PROCESSING);
+        order = salesOrderRepository.save(order);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "SALES",
+                "PROCESSING",
+                order.getId(),
+                order.getOrderCode(),
+                currentLogin,
+                order.getEmployee().getUser().getLogin()
+            )
+        );
+
+        return salesOrderMapper.toDto(order);
+    }
+
+    /**
+     * Shipper báo cáo đã giao xong -> Đánh tiếng cho Kế toán
+     */
+    @Transactional
+    @Override
+    public SalesOrderDTO confirmDelivery(Long id) {
+        log.debug("Shipper báo cáo giao thành công đơn: {}", id);
+        SalesOrder order = salesOrderRepository
+            .findById(id)
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn", "salesOrder", "id_not_found"));
+
+        if (order.getStatus() != OrderStatus.PROCESSING) {
+            throw new BadRequestAlertException("Đơn hàng chưa ở trạng thái Đang giao!", "salesOrder", "invalid_status");
+        }
+
+        // Không đổi status, giữ nguyên PROCESSING chờ kế toán chốt tiền.
+        // Chỉ bắn Notification réo tên Kế Toán.
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "SALES",
+                "DELIVERED_WAITING_PAYMENT",
+                order.getId(),
+                "Đơn " + order.getOrderCode() + " đã giao xong. Kế toán kiểm tra dòng tiền để chốt sổ!",
+                currentLogin,
+                "ACCOUNTANT_GROUP" // Gửi thẳng cho nhóm kế toán
+            )
+        );
+
+        return salesOrderMapper.toDto(order);
     }
 }

@@ -103,6 +103,24 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         return employee;
     }
 
+    private Employee validateReceivingWarehouseAccess(Long toWarehouseId) {
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
+        Employee employee = employeeRepository
+            .findByUserLogin(currentUserLogin)
+            .orElseThrow(() -> new BadRequestAlertException("Tài khoản chưa có hồ sơ nhân viên!", ENTITY_NAME, "employee_not_found"));
+
+        if (SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN)) return employee;
+
+        if (employee.getScopedWarehouse() == null || !employee.getScopedWarehouse().getId().equals(toWarehouseId)) {
+            throw new BadRequestAlertException(
+                "Bạn không quản lý kho nhập này, không thể bấm nhận hàng!",
+                ENTITY_NAME,
+                "warehouse_access_denied"
+            );
+        }
+        return employee;
+    }
+
     private void checkOrderOwnership(TransferOrder order) {
         if (
             !SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN) &&
@@ -277,7 +295,8 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
     private Page<TransferOrderDTO> getFilteredOrders(Pageable pageable, boolean eager) {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
-        boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        //        boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        //        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         if (isAdmin) {
             if (eager) return transferOrderRepository.findAllWithEagerRelationships(pageable).map(transferOrderMapper::toDto);
@@ -324,28 +343,67 @@ public class TransferOrderServiceImpl implements TransferOrderService {
     @Transactional
     @Override
     public TransferOrderDTO approveOrder(Long id) {
-        log.debug("Request to approve TransferOrder : {}", id);
-        TransferOrder order = transferOrderRepository.findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu"));
-
+        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
         validateWarehouseAccess(order.getFromWarehouse().getId());
+        if (order.getStatus() == OrderStatus.APPROVED) throw new BadRequestAlertException("Đã duyệt!", ENTITY_NAME, "already_approved");
 
-        if (order.getStatus() == OrderStatus.APPROVED) {
-            throw new BadRequestAlertException("Phiếu này đã được duyệt rồi!", ENTITY_NAME, "already_approved");
-        }
-
-        processInventoryTransfer(order, false); // false = Duyệt (Trừ A, Cộng B)
-
+        processOutboundTransfer(order, false); // CHỈ TRỪ KHO A
         order.setStatus(OrderStatus.APPROVED);
-        order = transferOrderRepository.save(order);
+        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+    }
 
+    @Transactional
+    @Override
+    public TransferOrderDTO cancelOrder(Long id) {
+        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
+        validateWarehouseAccess(order.getFromWarehouse().getId());
+        if (order.getStatus() == OrderStatus.COMPLETED) throw new BadRequestAlertException(
+            "Không thể hủy phiếu đã hoàn thành!",
+            ENTITY_NAME,
+            "cannot_cancel_completed"
+        );
+
+        // Hàng đã xuất hoặc đang đi đường thì phải trả lại Kho A
+        if (order.getStatus() == OrderStatus.APPROVED || order.getStatus() == OrderStatus.PROCESSING) {
+            processOutboundTransfer(order, true);
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+    }
+
+    @Transactional
+    @Override
+    public TransferOrderDTO startDelivery(Long id) {
+        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
+        if (order.getStatus() != OrderStatus.APPROVED) throw new BadRequestAlertException(
+            "Kho chưa xuất, chưa thể chở!",
+            ENTITY_NAME,
+            "invalid_status"
+        );
+
+        order.setStatus(OrderStatus.PROCESSING);
+        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+    }
+
+    @Transactional
+    @Override
+    public TransferOrderDTO confirmDelivery(Long id) {
+        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
+        if (order.getStatus() != OrderStatus.PROCESSING) throw new BadRequestAlertException(
+            "Chưa trên đường giao!",
+            ENTITY_NAME,
+            "invalid_status"
+        );
+
+        // Đánh tiếng cho Kho B ra nhận hàng
         eventPublisher.publishEvent(
             new OrderNotificationEvent(
                 "TRANSFER",
-                "APPROVED",
+                "ARRIVED",
                 order.getId(),
-                order.getTransferCode(),
-                SecurityUtils.getCurrentUserLogin().orElse("System"),
-                order.getEmployee().getUser().getLogin()
+                "Xe hàng điều chuyển " + order.getTransferCode() + " đã tới. Kho B kiểm đếm và nhận hàng!",
+                "System",
+                "WAREHOUSE_GROUP"
             )
         );
         return transferOrderMapper.toDto(order);
@@ -353,55 +411,73 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
     @Transactional
     @Override
-    public TransferOrderDTO cancelOrder(Long id) {
-        log.debug("Request to cancel TransferOrder : {}", id);
-        TransferOrder order = transferOrderRepository.findById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy phiếu"));
+    public TransferOrderDTO completeOrder(Long id) {
+        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
+        validateReceivingWarehouseAccess(order.getToWarehouse().getId()); // KHO B BẤM NHẬN
 
-        validateWarehouseAccess(order.getFromWarehouse().getId());
-
-        if (order.getStatus() == OrderStatus.CANCELLED) {
-            throw new BadRequestAlertException("Phiếu này đã bị hủy từ trước!", ENTITY_NAME, "already_cancelled");
-        }
-
-        if (order.getStatus() == OrderStatus.APPROVED) {
-            processInventoryTransfer(order, true); // true = Hủy (Cộng lại A, Trừ lại B)
-        }
-
-        order.setStatus(OrderStatus.CANCELLED);
-        order = transferOrderRepository.save(order);
-
-        eventPublisher.publishEvent(
-            new OrderNotificationEvent(
-                "TRANSFER",
-                "CANCELLED",
-                order.getId(),
-                order.getTransferCode(),
-                SecurityUtils.getCurrentUserLogin().orElse("System"),
-                order.getEmployee().getUser().getLogin()
-            )
+        if (order.getStatus() != OrderStatus.PROCESSING) throw new BadRequestAlertException(
+            "Hàng chưa tới nơi!",
+            ENTITY_NAME,
+            "invalid_status"
         );
-        return transferOrderMapper.toDto(order);
+
+        processInboundTransfer(order); // CỘNG KHO B
+        order.setStatus(OrderStatus.COMPLETED);
+        return transferOrderMapper.toDto(transferOrderRepository.save(order));
     }
 
     /**
-     * HÀM XỬ LÝ TỒN KHO CHUYÊN SÂU (Dùng chung cho Duyệt và Hủy)
-     * isReverse = false (Duyệt điều chuyển): Trừ Kho Xuất, Cộng Kho Nhập
-     * isReverse = true (Hủy điều chuyển): Cộng lại Kho Xuất, Trừ lại Kho Nhập
+     * Nhịp 1: Kho Xuất duyệt -> Trừ kho A (Hủy thì cộng lại kho A)
      */
-    private void processInventoryTransfer(TransferOrder order, boolean isReverse) {
-        log.debug("Bắt đầu xử lý tồn kho điều chuyển cho mã phiếu: {}. isReverse: {}", order.getTransferCode(), isReverse);
+    private void processOutboundTransfer(TransferOrder order, boolean isReverse) {
+        log.debug("Xử lý Xuất kho điều chuyển (Kho A). isReverse: {}", isReverse);
         List<TransferOrderLine> lines = transferOrderLineRepository.findByTransferOrderId(order.getId());
         if (lines.isEmpty()) return;
 
         List<Long> productIds = lines.stream().map(line -> line.getProduct().getId()).collect(Collectors.toList());
-
-        // Kéo tồn kho của CẢ 2 KHO lên RAM
-        Map<Long, InventoryBalance> fromBalances = inventoryBalanceRepository
+        Map<Long, InventoryBalance> balances = inventoryBalanceRepository
             .findByWarehouseIdAndProductIdIn(order.getFromWarehouse().getId(), productIds)
             .stream()
             .collect(Collectors.toMap(b -> b.getProduct().getId(), b -> b));
 
-        Map<Long, InventoryBalance> toBalances = inventoryBalanceRepository
+        List<InventoryTransaction> transactions = new ArrayList<>();
+        Instant now = Instant.now();
+
+        for (TransferOrderLine line : lines) {
+            InventoryBalance balance = balances.get(line.getProduct().getId());
+
+            if (!isReverse) { // Trừ kho xuất đi
+                if (balance == null || balance.getQuantity() < line.getQuantity()) {
+                    throw new BadRequestAlertException("Kho xuất không đủ hàng!", ENTITY_NAME, "insufficient_stock");
+                }
+                balance.setQuantity(balance.getQuantity() - line.getQuantity());
+            } else { // Hoàn kho do hủy đơn
+                balance.setQuantity(balance.getQuantity() + line.getQuantity());
+            }
+
+            InventoryTransaction tx = new InventoryTransaction();
+            tx.setType(isReverse ? TransactionType.TRANSFER_IN : TransactionType.TRANSFER_OUT);
+            tx.setQuantity(line.getQuantity());
+            tx.setReferenceId(order.getId());
+            tx.setCreatedDate(now);
+            tx.setProduct(line.getProduct());
+            tx.setWarehouse(order.getFromWarehouse());
+            transactions.add(tx);
+        }
+        inventoryBalanceRepository.saveAll(balances.values());
+        inventoryTransactionRepository.saveAll(transactions);
+    }
+
+    /**
+     * Nhịp 2: Kho Nhập nhận -> Cộng kho B
+     */
+    private void processInboundTransfer(TransferOrder order) {
+        log.debug("Xử lý Nhập kho điều chuyển (Kho B)");
+        List<TransferOrderLine> lines = transferOrderLineRepository.findByTransferOrderId(order.getId());
+        if (lines.isEmpty()) return;
+
+        List<Long> productIds = lines.stream().map(line -> line.getProduct().getId()).collect(Collectors.toList());
+        Map<Long, InventoryBalance> balances = inventoryBalanceRepository
             .findByWarehouseIdAndProductIdIn(order.getToWarehouse().getId(), productIds)
             .stream()
             .collect(Collectors.toMap(b -> b.getProduct().getId(), b -> b));
@@ -411,77 +487,28 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         Instant now = Instant.now();
 
         for (TransferOrderLine line : lines) {
-            Long pId = line.getProduct().getId();
-            int qty = line.getQuantity();
-
-            // Xác định xem đang Trừ kho nào, Cộng kho nào
-            InventoryBalance deductBalance = isReverse ? toBalances.get(pId) : fromBalances.get(pId);
-            Warehouse deductWarehouse = isReverse ? order.getToWarehouse() : order.getFromWarehouse();
-
-            InventoryBalance addBalance = isReverse ? fromBalances.get(pId) : toBalances.get(pId);
-            Warehouse addWarehouse = isReverse ? order.getFromWarehouse() : order.getToWarehouse();
-
-            // Logic Trừ Kho
-            if (deductBalance == null || deductBalance.getQuantity() < qty) {
-                throw new BadRequestAlertException(
-                    "Tồn kho của sản phẩm " +
-                    line.getProduct().getName() +
-                    " tại kho " +
-                    deductWarehouse.getName() +
-                    " không đủ để thực hiện!",
-                    ENTITY_NAME,
-                    "insufficient_stock_for_transfer"
-                );
-            }
-            deductBalance.setQuantity(deductBalance.getQuantity() - qty);
-
-            // Logic Cộng Kho
-            if (addBalance != null) {
-                addBalance.setQuantity(addBalance.getQuantity() + qty);
+            InventoryBalance balance = balances.get(line.getProduct().getId());
+            if (balance != null) {
+                balance.setQuantity(balance.getQuantity() + line.getQuantity());
             } else {
-                addBalance = new InventoryBalance();
-                addBalance.setProduct(line.getProduct());
-                addBalance.setWarehouse(addWarehouse);
-                addBalance.setQuantity(qty);
-                newBalances.add(addBalance);
+                balance = new InventoryBalance();
+                balance.setProduct(line.getProduct());
+                balance.setWarehouse(order.getToWarehouse());
+                balance.setQuantity(line.getQuantity());
+                newBalances.add(balance);
             }
 
-            // 3. Ghi Lịch sử (2 dòng cho mỗi mặt hàng: 1 Xuất, 1 Nhập)
-            // Giao dịch Xuất
-            InventoryTransaction txIssue = new InventoryTransaction();
-            txIssue.setType(TransactionType.TRANSFER_OUT);
-            txIssue.setQuantity(qty);
-            txIssue.setReferenceId(order.getId());
-            txIssue.setCreatedDate(now);
-            txIssue.setProduct(line.getProduct());
-            txIssue.setWarehouse(deductWarehouse);
-            transactions.add(txIssue);
-
-            // Giao dịch Nhập
-            InventoryTransaction txReceipt = new InventoryTransaction();
-            txReceipt.setType(TransactionType.TRANSFER_IN);
-            txReceipt.setQuantity(qty);
-            txReceipt.setReferenceId(order.getId());
-            txReceipt.setCreatedDate(now);
-            txReceipt.setProduct(line.getProduct());
-            txReceipt.setWarehouse(addWarehouse);
-            transactions.add(txReceipt);
+            InventoryTransaction tx = new InventoryTransaction();
+            tx.setType(TransactionType.TRANSFER_IN);
+            tx.setQuantity(line.getQuantity());
+            tx.setReferenceId(order.getId());
+            tx.setCreatedDate(now);
+            tx.setProduct(line.getProduct());
+            tx.setWarehouse(order.getToWarehouse());
+            transactions.add(tx);
         }
-
-        try {
-            inventoryBalanceRepository.saveAll(fromBalances.values());
-            inventoryBalanceRepository.saveAll(toBalances.values());
-            inventoryBalanceRepository.saveAll(newBalances);
-            inventoryTransactionRepository.saveAll(transactions);
-
-            inventoryBalanceRepository.flush();
-            inventoryTransactionRepository.flush();
-        } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-            throw new BadRequestAlertException(
-                "Xung đột dữ liệu tồn kho trong quá trình điều chuyển!",
-                ENTITY_NAME,
-                "optimistic_locking_conflict"
-            );
-        }
+        inventoryBalanceRepository.saveAll(balances.values());
+        inventoryBalanceRepository.saveAll(newBalances);
+        inventoryTransactionRepository.saveAll(transactions);
     }
 }

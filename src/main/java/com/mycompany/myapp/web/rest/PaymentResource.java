@@ -1,24 +1,26 @@
 package com.mycompany.myapp.web.rest;
 
+import com.mycompany.myapp.domain.SalesOrder;
 import com.mycompany.myapp.repository.PaymentRepository;
+import com.mycompany.myapp.repository.SalesOrderRepository;
 import com.mycompany.myapp.security.AuthoritiesConstants;
 import com.mycompany.myapp.service.PaymentService;
+import com.mycompany.myapp.service.VNPayService;
 import com.mycompany.myapp.service.dto.PaymentDTO;
 import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 import java.util.Optional;
-import javax.validation.Valid;
-import javax.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -35,130 +37,52 @@ import tech.jhipster.web.util.ResponseUtil;
 public class PaymentResource {
 
     private final Logger log = LoggerFactory.getLogger(PaymentResource.class);
-
     private static final String ENTITY_NAME = "payment";
 
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
 
     private final PaymentService paymentService;
-
     private final PaymentRepository paymentRepository;
+    private final VNPayService vnPayService;
+    private final SalesOrderRepository salesOrderRepository;
 
-    public PaymentResource(PaymentService paymentService, PaymentRepository paymentRepository) {
+    public PaymentResource(
+        PaymentService paymentService,
+        PaymentRepository paymentRepository,
+        VNPayService vnPayService,
+        SalesOrderRepository salesOrderRepository
+    ) {
         this.paymentService = paymentService;
         this.paymentRepository = paymentRepository;
+        this.vnPayService = vnPayService;
+        this.salesOrderRepository = salesOrderRepository;
     }
 
-    /**
-     * {@code POST  /payments} : Create a new payment.
-     *
-     * @param paymentDTO the paymentDTO to create.
-     * @return the {@link ResponseEntity} with status {@code 201 (Created)} and with body the new paymentDTO, or with status {@code 400 (Bad Request)} if the payment has already an ID.
-     * @throws URISyntaxException if the Location URI syntax is incorrect.
-     */
-    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.ACCOUNTANT + "\")")
-    @PostMapping("/payments")
-    public ResponseEntity<PaymentDTO> createPayment(@Valid @RequestBody PaymentDTO paymentDTO) throws URISyntaxException {
-        log.debug("REST request to save Payment : {}", paymentDTO);
-        if (paymentDTO.getId() != null) {
-            throw new BadRequestAlertException("A new payment cannot already have an ID", ENTITY_NAME, "idexists");
+    @PostMapping("/payments/create-vnpay-url")
+    public ResponseEntity<Map<String, String>> createVNPayUrl(@RequestParam Long orderId, javax.servlet.http.HttpServletRequest request) {
+        log.debug("REST request để tạo Link thanh toán VNPay cho đơn hàng: {}", orderId);
+
+        // 1. Lấy đơn hàng từ DB để đảm bảo tính chính xác của số tiền
+        SalesOrder order = salesOrderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn hàng", "salesOrder", "id_not_found"));
+
+        // 2. Lấy địa chỉ IP của người dùng thao tác
+        String ipAddress = request.getHeader("X-FORWARDED-FOR");
+        if (ipAddress == null || "".equals(ipAddress)) {
+            ipAddress = request.getRemoteAddr();
         }
-        PaymentDTO result = paymentService.save(paymentDTO);
-        return ResponseEntity
-            .created(new URI("/api/payments/" + result.getId()))
-            .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, result.getId().toString()))
-            .body(result);
+
+        // 3. Sinh URL thanh toán
+        String paymentUrl = vnPayService.createPaymentUrl(orderId, order.getTotalAmount(), ipAddress);
+
+        // Trả về Frontend dưới dạng JSON { "url": "https://sandbox.vnpay..." }
+        Map<String, String> response = new HashMap<>();
+        response.put("url", paymentUrl);
+        return ResponseEntity.ok(response);
     }
 
-    /**
-     * {@code PUT  /payments/:id} : Updates an existing payment.
-     *
-     * @param id the id of the paymentDTO to save.
-     * @param paymentDTO the paymentDTO to update.
-     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated paymentDTO,
-     * or with status {@code 400 (Bad Request)} if the paymentDTO is not valid,
-     * or with status {@code 500 (Internal Server Error)} if the paymentDTO couldn't be updated.
-     * @throws URISyntaxException if the Location URI syntax is incorrect.
-     */
-    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.ACCOUNTANT + "\")")
-    @PutMapping("/payments/{id}")
-    public ResponseEntity<PaymentDTO> updatePayment(
-        @PathVariable(value = "id", required = false) final Long id,
-        @Valid @RequestBody PaymentDTO paymentDTO
-    ) throws URISyntaxException {
-        log.debug("REST request to update Payment : {}, {}", id, paymentDTO);
-        if (paymentDTO.getId() == null) {
-            throw new BadRequestAlertException("Invalid id", ENTITY_NAME, "idnull");
-        }
-        if (!Objects.equals(id, paymentDTO.getId())) {
-            throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
-        }
-
-        if (!paymentRepository.existsById(id)) {
-            throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
-        }
-
-        PaymentDTO result = paymentService.update(paymentDTO);
-        return ResponseEntity
-            .ok()
-            .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, paymentDTO.getId().toString()))
-            .body(result);
-    }
-
-    /**
-     * {@code PATCH  /payments/:id} : Partial updates given fields of an existing payment, field will ignore if it is null
-     *
-     * @param id the id of the paymentDTO to save.
-     * @param paymentDTO the paymentDTO to update.
-     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the updated paymentDTO,
-     * or with status {@code 400 (Bad Request)} if the paymentDTO is not valid,
-     * or with status {@code 404 (Not Found)} if the paymentDTO is not found,
-     * or with status {@code 500 (Internal Server Error)} if the paymentDTO couldn't be updated.
-     * @throws URISyntaxException if the Location URI syntax is incorrect.
-     */
-    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.ACCOUNTANT + "\")")
-    @PatchMapping(value = "/payments/{id}", consumes = { "application/json", "application/merge-patch+json" })
-    public ResponseEntity<PaymentDTO> partialUpdatePayment(
-        @PathVariable(value = "id", required = false) final Long id,
-        @NotNull @RequestBody PaymentDTO paymentDTO
-    ) throws URISyntaxException {
-        log.debug("REST request to partial update Payment partially : {}, {}", id, paymentDTO);
-        if (paymentDTO.getId() == null) {
-            throw new BadRequestAlertException("Invalid id", ENTITY_NAME, "idnull");
-        }
-        if (!Objects.equals(id, paymentDTO.getId())) {
-            throw new BadRequestAlertException("Invalid ID", ENTITY_NAME, "idinvalid");
-        }
-
-        if (!paymentRepository.existsById(id)) {
-            throw new BadRequestAlertException("Entity not found", ENTITY_NAME, "idnotfound");
-        }
-
-        Optional<PaymentDTO> result = paymentService.partialUpdate(paymentDTO);
-
-        return ResponseUtil.wrapOrNotFound(
-            result,
-            HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, paymentDTO.getId().toString())
-        );
-    }
-
-    /**
-     * {@code GET  /payments} : get all the payments.
-     *
-     * @param pageable the pagination information.
-     * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many).
-     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of payments in body.
-     */
-    @PreAuthorize(
-        "hasAnyAuthority(\"" +
-        AuthoritiesConstants.ADMIN +
-        "\", \"" +
-        AuthoritiesConstants.ACCOUNTANT +
-        "\", \"" +
-        AuthoritiesConstants.MANAGER +
-        "\")"
-    )
     @GetMapping("/payments")
     public ResponseEntity<List<PaymentDTO>> getAllPayments(
         @org.springdoc.api.annotations.ParameterObject Pageable pageable,
@@ -175,21 +99,6 @@ public class PaymentResource {
         return ResponseEntity.ok().headers(headers).body(page.getContent());
     }
 
-    /**
-     * {@code GET  /payments/:id} : get the "id" payment.
-     *
-     * @param id the id of the paymentDTO to retrieve.
-     * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the paymentDTO, or with status {@code 404 (Not Found)}.
-     */
-    @PreAuthorize(
-        "hasAnyAuthority(\"" +
-        AuthoritiesConstants.ADMIN +
-        "\", \"" +
-        AuthoritiesConstants.ACCOUNTANT +
-        "\", \"" +
-        AuthoritiesConstants.MANAGER +
-        "\")"
-    )
     @GetMapping("/payments/{id}")
     public ResponseEntity<PaymentDTO> getPayment(@PathVariable Long id) {
         log.debug("REST request to get Payment : {}", id);
@@ -198,19 +107,64 @@ public class PaymentResource {
     }
 
     /**
-     * {@code DELETE  /payments/:id} : delete the "id" payment.
-     *
-     * @param id the id of the paymentDTO to delete.
-     * @return the {@link ResponseEntity} with status {@code 204 (NO_CONTENT)}.
+     * API giả lập nhận Webhook từ VNPay (Mở public hoặc yêu cầu token tùy ý bạn)
      */
-    @PreAuthorize("hasAuthority(\"" + AuthoritiesConstants.ADMIN + "\")")
-    @DeleteMapping("/payments/{id}")
-    public ResponseEntity<Void> deletePayment(@PathVariable Long id) {
-        log.debug("REST request to delete Payment : {}", id);
-        paymentService.delete(id);
+    @PostMapping("/payments/vnpay-webhook")
+    public ResponseEntity<Void> receiveVNPayWebhook(@RequestBody Map<String, Object> payload) {
+        log.debug("REST request to handle VNPay Webhook: {}", payload);
+
+        // Tự động bóc tách data giả lập từ VNPay
+        String bankTxnId = payload.get("vnp_TransactionNo").toString();
+        BigDecimal amount = new BigDecimal(payload.get("vnp_Amount").toString()); // Thường VNPay x100, bạn tự chia lại nếu cần
+        String content = payload.get("vnp_OrderInfo").toString();
+
+        Long customerId = payload.containsKey("customerId") ? Long.valueOf(payload.get("customerId").toString()) : null;
+        Long orderId = payload.containsKey("orderId") ? Long.valueOf(payload.get("orderId").toString()) : null;
+
+        paymentService.handleBankWebhook(bankTxnId, amount, content, customerId, orderId);
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * API dành cho Kế Toán hoặc Admin duyệt phiếu thanh toán (Chuyển sang COMPLETED)
+     */
+    @PutMapping("/payments/{id}/approve")
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.ACCOUNTANT + "\")")
+    public ResponseEntity<PaymentDTO> approvePayment(@PathVariable Long id) {
+        log.debug("REST request to approve and reconcile Payment : {}", id);
+
+        PaymentDTO result = paymentService.approveAndReconcile(id);
+
         return ResponseEntity
-            .noContent()
-            .headers(HeaderUtil.createEntityDeletionAlert(applicationName, true, ENTITY_NAME, id.toString()))
-            .build();
+            .ok()
+            .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, ENTITY_NAME, result.getId().toString()))
+            .body(result);
+    }
+
+    /**
+     * API dành riêng cho Kế toán tạo Phiếu Chi sau khi đã chuyển khoản thật cho Nhà cung cấp.
+     * Phương thức POST nhưng không dùng hàm save() mặc định để đảm bảo an toàn luồng tiền.
+     */
+    @PostMapping("/payments/disbursement")
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.ACCOUNTANT + "\")")
+    public ResponseEntity<PaymentDTO> createDisbursement(
+        @RequestParam Long supplierId,
+        @RequestParam BigDecimal amount,
+        @RequestParam(required = false, defaultValue = "Thanh toán công nợ Nhà cung cấp") String note
+    ) throws URISyntaxException {
+        log.debug("REST request để Kế toán tạo Phiếu chi trả Nhà cung cấp: ID {}, Số tiền {}", supplierId, amount);
+
+        // Validation cơ bản ở tầng API
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestAlertException("Số tiền chi phải lớn hơn 0", ENTITY_NAME, "invalid_amount");
+        }
+
+        PaymentDTO result = paymentService.createSupplierDisbursement(supplierId, amount, note);
+
+        return ResponseEntity
+            .created(new URI("/api/payments/" + result.getId()))
+            .headers(HeaderUtil.createEntityCreationAlert(applicationName, true, ENTITY_NAME, result.getId().toString()))
+            .body(result);
     }
 }

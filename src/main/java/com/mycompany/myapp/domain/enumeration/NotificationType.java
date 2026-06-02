@@ -5,6 +5,6 @@ package com.mycompany.myapp.domain.enumeration;
  */
 public enum NotificationType {
     SYSTEM,
-    ORDER_APPROVAL,
-    INVENTORY_ALERT,
+    //    ORDER_APPROVAL,
+    //    INVENTORY_ALERT,
 }

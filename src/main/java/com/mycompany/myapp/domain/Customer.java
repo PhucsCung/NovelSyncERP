@@ -52,6 +52,10 @@ public class Customer implements Serializable {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "address")
+    private String address;
+
+    // jhipster-needle-entity-add-field - JHipster will add fields here
     public Boolean getIsActive() {
         return isActive;
     }
@@ -65,7 +69,6 @@ public class Customer implements Serializable {
         this.isActive = isActive;
     }
 
-    // ... (Bác nhớ Generate thêm hàm getVersion() và setVersion() ở dưới cùng nữa nhé)
     public Long getVersion() {
         return version;
     }
@@ -74,7 +77,18 @@ public class Customer implements Serializable {
         this.version = version;
     }
 
-    // jhipster-needle-entity-add-field - JHipster will add fields here
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public Customer address(String address) { // Đổi thành Supplier nếu ở file Supplier
+        this.address = address;
+        return this;
+    }
 
     public Long getId() {
         return this.id;

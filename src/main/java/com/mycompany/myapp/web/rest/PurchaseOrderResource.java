@@ -181,6 +181,8 @@ public class PurchaseOrderResource {
         "\", \"" +
         AuthoritiesConstants.MANAGER +
         "\", \"" +
+        AuthoritiesConstants.SHIPPER +
+        "\", \"" +
         AuthoritiesConstants.PURCHASER +
         "\", \"" +
         AuthoritiesConstants.ACCOUNTANT +
@@ -213,6 +215,8 @@ public class PurchaseOrderResource {
         AuthoritiesConstants.ADMIN +
         "\", \"" +
         AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.SHIPPER +
         "\", \"" +
         AuthoritiesConstants.PURCHASER +
         "\", \"" +
@@ -301,5 +305,27 @@ public class PurchaseOrderResource {
             .ok()
             .headers(HeaderUtil.createEntityUpdateAlert(applicationName, true, "purchaseOrder", id.toString()))
             .body(result);
+    }
+
+    /**
+     * {@code PUT  /purchase-orders/{id}/start-delivery} : Shipper xác nhận đi lấy hàng.
+     */
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.SHIPPER + "\")")
+    @PutMapping("/purchase-orders/{id}/start-delivery")
+    public ResponseEntity<PurchaseOrderDTO> startDelivery(@PathVariable Long id) {
+        log.debug("REST request to start delivery for PurchaseOrder : {}", id);
+        PurchaseOrderDTO result = purchaseOrderService.startDelivery(id);
+        return ResponseEntity.ok().body(result);
+    }
+
+    /**
+     * {@code PUT  /purchase-orders/{id}/confirm-delivery} : Shipper báo cáo hàng về tới.
+     */
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.SHIPPER + "\")")
+    @PutMapping("/purchase-orders/{id}/confirm-delivery")
+    public ResponseEntity<PurchaseOrderDTO> confirmDelivery(@PathVariable Long id) {
+        log.debug("REST request to confirm delivery for PurchaseOrder : {}", id);
+        PurchaseOrderDTO result = purchaseOrderService.confirmDelivery(id);
+        return ResponseEntity.ok().body(result);
     }
 }

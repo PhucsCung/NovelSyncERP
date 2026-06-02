@@ -67,4 +67,8 @@ public interface TransferOrderService {
     TransferOrderDTO approveOrder(Long id);
 
     TransferOrderDTO cancelOrder(Long id);
+
+    TransferOrderDTO startDelivery(Long id); // Shipper bắt đầu chở
+    TransferOrderDTO confirmDelivery(Long id); // Shipper báo tới nơi
+    TransferOrderDTO completeOrder(Long id); // Quản lý Kho Nhập bấm nhận hàng
 }

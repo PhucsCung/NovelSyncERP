@@ -74,4 +74,8 @@ public interface SalesOrderService {
     SalesOrderDTO completeOrder(Long id);
 
     SalesOrderDTO cancelOrder(Long id);
+
+    // THÊM HÀM CHO SHIPPER
+    SalesOrderDTO startDelivery(Long id); // Chuyển sang PROCESSING
+    SalesOrderDTO confirmDelivery(Long id); // Báo cáo Kế toán
 }

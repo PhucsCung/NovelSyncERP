@@ -1,13 +1,15 @@
 package com.mycompany.myapp.service.impl;
 
 import com.mycompany.myapp.domain.*;
+import com.mycompany.myapp.domain.enumeration.PaymentStatus;
 import com.mycompany.myapp.domain.enumeration.PaymentType;
 import com.mycompany.myapp.repository.*;
 import com.mycompany.myapp.service.PaymentService;
+import com.mycompany.myapp.service.SalesOrderService;
 import com.mycompany.myapp.service.dto.PaymentDTO;
 import com.mycompany.myapp.service.mapper.PaymentMapper;
+import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,80 +26,26 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentServiceImpl implements PaymentService {
 
     private final Logger log = LoggerFactory.getLogger(PaymentServiceImpl.class);
+    private static final String ENTITY_NAME = "payment";
 
     private final PaymentRepository paymentRepository;
-
     private final PaymentMapper paymentMapper;
     private final CustomerRepository customerRepository;
     private final SupplierRepository supplierRepository;
-    private final SalesOrderRepository salesOrderRepository;
-    private final PurchaseOrderRepository purchaseOrderRepository;
+    private final SalesOrderService salesOrderService;
 
     public PaymentServiceImpl(
         PaymentRepository paymentRepository,
         PaymentMapper paymentMapper,
         CustomerRepository customerRepository,
         SupplierRepository supplierRepository,
-        SalesOrderRepository salesOrderRepository,
-        PurchaseOrderRepository purchaseOrderRepository
+        SalesOrderService salesOrderService
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentMapper = paymentMapper;
         this.customerRepository = customerRepository;
         this.supplierRepository = supplierRepository;
-        this.salesOrderRepository = salesOrderRepository;
-        this.purchaseOrderRepository = purchaseOrderRepository;
-    }
-
-    @Override
-    public PaymentDTO save(PaymentDTO paymentDTO) {
-        log.debug("Request to save Payment : {}", paymentDTO);
-        Payment payment = paymentMapper.toEntity(paymentDTO);
-        payment = paymentRepository.save(payment);
-        // Chỉ cần gọi hàm Áp dụng
-        applyPaymentDebt(payment);
-        return paymentMapper.toDto(payment);
-    }
-
-    @Override
-    public PaymentDTO update(PaymentDTO paymentDTO) {
-        log.debug("Request to update Payment : {}", paymentDTO);
-        // 1. Lấy phiếu cũ dưới DB lên và Hoàn lại tiền cũ
-        Payment oldPayment = paymentRepository
-            .findById(paymentDTO.getId())
-            .orElseThrow(() -> new RuntimeException("Không tìm thấy Phiếu thanh toán"));
-        revertPaymentDebt(oldPayment);
-
-        // 2. Lưu phiếu mới
-        Payment payment = paymentMapper.toEntity(paymentDTO);
-        payment = paymentRepository.save(payment);
-
-        // 3. Áp dụng lại tiền mới
-        applyPaymentDebt(payment);
-
-        return paymentMapper.toDto(payment);
-    }
-
-    @Override
-    public Optional<PaymentDTO> partialUpdate(PaymentDTO paymentDTO) {
-        log.debug("Request to partially update Payment : {}", paymentDTO);
-
-        return paymentRepository
-            .findById(paymentDTO.getId())
-            .map(existingPayment -> {
-                // 1. Hoàn lại tiền cũ trước khi map dữ liệu mới vào
-                revertPaymentDebt(existingPayment);
-
-                // 2. Map dữ liệu mới đè lên
-                paymentMapper.partialUpdate(existingPayment, paymentDTO);
-                return existingPayment;
-            })
-            .map(paymentRepository::save)
-            .map(savedPayment -> {
-                // 3. Áp dụng tiền mới sau khi đã lưu xong
-                applyPaymentDebt(savedPayment);
-                return paymentMapper.toDto(savedPayment);
-            });
+        this.salesOrderService = salesOrderService;
     }
 
     @Override
@@ -107,6 +55,8 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentRepository.findAll(pageable).map(paymentMapper::toDto);
     }
 
+    @Override
+    @Transactional(readOnly = true)
     public Page<PaymentDTO> findAllWithEagerRelationships(Pageable pageable) {
         return paymentRepository.findAllWithEagerRelationships(pageable).map(paymentMapper::toDto);
     }
@@ -118,113 +68,105 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentRepository.findOneWithEagerRelationships(id).map(paymentMapper::toDto);
     }
 
+    // =================================================================================
+    // 2. LUỒNG NGHIỆP VỤ HYBRID ERP (VNPAY IPN + KẾ TOÁN DUYỆT)
+    // =================================================================================
+
     @Override
-    public void delete(Long id) {
-        log.debug("Request to delete Payment : {}", id);
-        // 1. Tìm phiếu trước khi xóa, nếu có thì Hoàn lại tiền cho Khách
-        paymentRepository.findById(id).ifPresent(this::revertPaymentDebt);
+    public PaymentDTO handleBankWebhook(String bankTransactionId, BigDecimal amount, String content, Long customerId, Long orderId) {
+        log.debug("Nhận Webhook từ VNPay/Bank. Mã GD: {}, Số tiền: {}", bankTransactionId, amount);
 
-        // 2. Xóa phiếu khỏi DB
-        paymentRepository.deleteById(id);
+        Payment payment = new Payment();
+        payment.setPaymentCode("VNPAY-" + bankTransactionId);
+        payment.setType(PaymentType.RECEIPT);
+        payment.setAmount(amount);
+        payment.setStatus(PaymentStatus.PENDING); // CHƯA TRỪ NỢ
+        payment.setNote("VNPay Webhook: " + content);
+
+        if (orderId != null) {
+            payment.setReferenceOrderId(orderId);
+        }
+
+        if (customerId != null) {
+            Customer customer = customerRepository.findById(customerId).orElse(null);
+            payment.setCustomer(customer);
+        }
+
+        payment = paymentRepository.save(payment);
+        log.info("🚀 VNPay Webhook đã tự động tạo phiếu thu PENDING: {}", payment.getPaymentCode());
+        return paymentMapper.toDto(payment);
     }
 
-    /**
-     * Hàm tính tổng tiền đã thu và so sánh với giá trị Đơn Bán Hàng
-     */
-    private void checkSalesOrderPaymentStatus(Long salesOrderId) {
-        SalesOrder order = salesOrderRepository.findById(salesOrderId).orElse(null);
-        if (order == null) return;
+    @Override
+    public PaymentDTO approveAndReconcile(Long id) {
+        log.debug("Kế toán duyệt và ghi sổ phiếu thanh toán ID: {}", id);
 
-        // Lấy tất cả Phiếu THU gắn với đơn hàng này
-        List<Payment> payments = paymentRepository.findByReferenceOrderIdAndType(salesOrderId, PaymentType.RECEIPT);
+        Payment payment = paymentRepository
+            .findById(id)
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy phiếu thanh toán!", ENTITY_NAME, "id_not_found"));
 
-        // Cộng dồn tổng tiền đã trả
-        BigDecimal totalPaid = BigDecimal.ZERO;
-        for (Payment p : payments) {
-            totalPaid = totalPaid.add(p.getAmount());
+        if (payment.getStatus() == PaymentStatus.COMPLETED) {
+            throw new BadRequestAlertException("Phiếu này đã được ghi sổ từ trước!", ENTITY_NAME, "already_approved");
         }
 
-        BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
+        payment.setStatus(PaymentStatus.COMPLETED);
+        applyPaymentDebt(payment);
+        //hoàn thành đơn
+        if (payment.getType() == PaymentType.RECEIPT && payment.getReferenceOrderId() != null) {
+            log.info("Tự động hoàn thành SalesOrder ID: {} vì đã thu đủ tiền", payment.getReferenceOrderId());
 
-        // Kiểm tra nếu Đã trả >= Tổng đơn hàng
-        if (totalPaid.compareTo(orderTotal) >= 0) {
-            log.info("🎉 Đơn bán hàng {} ĐÃ ĐƯỢC THANH TOÁN ĐỦ! Tổng thu: {}", salesOrderId, totalPaid);
-            // TODO: Bác có thể cập nhật trạng thái đơn hàng thành PAID tại đây nếu Database có hỗ trợ.
-        } else {
-            log.info("⏳ Đơn bán hàng {} mới thanh toán một phần. Còn thiếu: {}", salesOrderId, orderTotal.subtract(totalPaid));
+            // Gọi sang hàm completeOrder của SalesOrderService
+            // (Hàm này của bạn sẽ tự động lo việc đổi status sang COMPLETED và + nợ)
+            salesOrderService.completeOrder(payment.getReferenceOrderId());
         }
+
+        payment = paymentRepository.save(payment);
+        log.info("🎉 Kế toán đã duyệt thành công! Công nợ đã được cấn trừ cho phiếu: {}", payment.getPaymentCode());
+        return paymentMapper.toDto(payment);
     }
 
-    /**
-     * Hàm tính tổng tiền đã chi và so sánh với giá trị Đơn Mua Hàng
-     */
-    private void checkPurchaseOrderPaymentStatus(Long purchaseOrderId) {
-        PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId).orElse(null);
-        if (order == null) return;
-
-        // Lấy tất cả Phiếu CHI gắn với đơn hàng này
-        List<Payment> payments = paymentRepository.findByReferenceOrderIdAndType(purchaseOrderId, PaymentType.DISBURSEMENT);
-
-        BigDecimal totalPaid = BigDecimal.ZERO;
-        for (Payment p : payments) {
-            totalPaid = totalPaid.add(p.getAmount());
-        }
-
-        BigDecimal orderTotal = order.getTotalAmount() != null ? order.getTotalAmount() : BigDecimal.ZERO;
-
-        if (totalPaid.compareTo(orderTotal) >= 0) {
-            log.info("🎉 Đơn mua hàng {} ĐÃ ĐƯỢC THANH TOÁN ĐỦ! Tổng chi: {}", purchaseOrderId, totalPaid);
-            // TODO: Bác có thể cập nhật trạng thái đơn hàng thành PAID tại đây nếu Database có hỗ trợ.
-        }
-    }
-
-    /**
-     * Hàm ÁP DỤNG: Trừ nợ khi tạo mới Phiếu Thu/Chi
-     */
     private void applyPaymentDebt(Payment payment) {
         if (payment.getType() == PaymentType.RECEIPT && payment.getCustomer() != null) {
-            Customer customer = customerRepository.findById(payment.getCustomer().getId()).orElseThrow();
+            Customer customer = payment.getCustomer();
             BigDecimal currentDebt = customer.getCurrentDebt() != null ? customer.getCurrentDebt() : BigDecimal.ZERO;
 
-            // ÁP DỤNG: Trừ nợ
             customer.setCurrentDebt(currentDebt.subtract(payment.getAmount()));
             customerRepository.save(customer);
-
-            if (payment.getReferenceOrderId() != null) checkSalesOrderPaymentStatus(payment.getReferenceOrderId());
         } else if (payment.getType() == PaymentType.DISBURSEMENT && payment.getSupplier() != null) {
-            Supplier supplier = supplierRepository.findById(payment.getSupplier().getId()).orElseThrow();
+            Supplier supplier = payment.getSupplier();
             BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
 
-            // ÁP DỤNG: Trừ nợ
             supplier.setCurrentDebt(currentDebt.subtract(payment.getAmount()));
             supplierRepository.save(supplier);
-
-            if (payment.getReferenceOrderId() != null) checkPurchaseOrderPaymentStatus(payment.getReferenceOrderId());
         }
     }
 
     /**
-     * Hàm HOÀN LẠI (ROLLBACK): Cộng nợ trả lại khi Xóa hoặc Sửa Phiếu Thu/Chi
+     * Hàm dành riêng cho Kế toán tạo Phiếu Chi (Trả nợ Nhà cung cấp)
+     * Vì là Kế toán tự tạo sau khi đã chuyển khoản thật, phiếu sẽ auto COMPLETED
      */
-    private void revertPaymentDebt(Payment payment) {
-        if (payment.getType() == PaymentType.RECEIPT && payment.getCustomer() != null) {
-            Customer customer = customerRepository.findById(payment.getCustomer().getId()).orElseThrow();
-            BigDecimal currentDebt = customer.getCurrentDebt() != null ? customer.getCurrentDebt() : BigDecimal.ZERO;
+    @Override
+    public PaymentDTO createSupplierDisbursement(Long supplierId, BigDecimal amount, String note) {
+        log.debug("Kế toán tạo Phiếu chi trả nợ Nhà cung cấp ID: {}, Số tiền: {}", supplierId, amount);
 
-            // HOÀN LẠI: Cộng trả lại tiền đã trừ lỡ tay
-            customer.setCurrentDebt(currentDebt.add(payment.getAmount()));
-            customerRepository.save(customer);
+        Supplier supplier = supplierRepository
+            .findById(supplierId)
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy Nhà cung cấp!", "payment", "supplier_not_found"));
 
-            if (payment.getReferenceOrderId() != null) checkSalesOrderPaymentStatus(payment.getReferenceOrderId());
-        } else if (payment.getType() == PaymentType.DISBURSEMENT && payment.getSupplier() != null) {
-            Supplier supplier = supplierRepository.findById(payment.getSupplier().getId()).orElseThrow();
-            BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
+        Payment payment = new Payment();
+        payment.setPaymentCode("PC-" + Instant.now().toEpochMilli()); // PC = Phiếu Chi
+        payment.setType(PaymentType.DISBURSEMENT); // Loại: CHI
+        payment.setAmount(amount);
+        payment.setStatus(PaymentStatus.COMPLETED); // Tạo phát là Hoàn thành luôn
+        payment.setNote(note);
+        payment.setSupplier(supplier);
 
-            // HOÀN LẠI: Cộng trả lại tiền
-            supplier.setCurrentDebt(currentDebt.add(payment.getAmount()));
-            supplierRepository.save(supplier);
+        // Trừ nợ Supplier
+        BigDecimal currentDebt = supplier.getCurrentDebt() != null ? supplier.getCurrentDebt() : BigDecimal.ZERO;
+        supplier.setCurrentDebt(currentDebt.subtract(amount));
+        supplierRepository.save(supplier);
 
-            if (payment.getReferenceOrderId() != null) checkPurchaseOrderPaymentStatus(payment.getReferenceOrderId());
-        }
+        payment = paymentRepository.save(payment);
+        return paymentMapper.toDto(payment);
     }
 }
