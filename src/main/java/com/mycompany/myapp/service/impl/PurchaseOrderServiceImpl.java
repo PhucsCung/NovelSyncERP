@@ -47,7 +47,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final SupplierRepository supplierRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final EmployeeRepository employeeRepository; // ĐÃ THÊM
+    private final EmployeeRepository employeeRepository;
+    private final ProductRepository productRepository;
 
     public PurchaseOrderServiceImpl(
         PurchaseOrderRepository purchaseOrderRepository,
@@ -58,7 +59,8 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         PurchaseOrderLineMapper purchaseOrderLineMapper,
         SupplierRepository supplierRepository,
         ApplicationEventPublisher eventPublisher,
-        EmployeeRepository employeeRepository // ĐÃ THÊM
+        EmployeeRepository employeeRepository,
+        ProductRepository productRepository
     ) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
@@ -69,6 +71,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         this.supplierRepository = supplierRepository;
         this.eventPublisher = eventPublisher;
         this.employeeRepository = employeeRepository;
+        this.productRepository = productRepository;
     }
 
     private Employee validatePurchaserAccess(Long warehouseId) {
@@ -152,10 +155,38 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         purchaseOrderDTO.setPoCode("PO-" + Instant.now().toEpochMilli());
         purchaseOrderDTO.setStatus(OrderStatus.DRAFT);
 
+        List<Long> productIds = purchaseOrderDTO
+            .getPurchaseOrderLines()
+            .stream()
+            .map(line -> {
+                if (line.getProduct() == null || line.getProduct().getId() == null) {
+                    throw new BadRequestAlertException("Mặt hàng không được để trống sản phẩm!", ENTITY_NAME, "invalid_product");
+                }
+                return line.getProduct().getId();
+            })
+            .collect(Collectors.toList());
+
+        Map<Long, Product> productMap = productRepository
+            .findAllById(productIds)
+            .stream()
+            .collect(Collectors.toMap(Product::getId, p -> p));
+
         BigDecimal calculatedTotal = BigDecimal.ZERO;
         for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
-            if (line.getUnitPrice() == null || line.getQuantity() == null) {
-                throw new BadRequestAlertException("Mặt hàng không được để trống đơn giá hoặc số lượng!", ENTITY_NAME, "invalid_line_data");
+            Product product = productMap.get(line.getProduct().getId());
+            if (product == null) {
+                throw new BadRequestAlertException(
+                    "Không tìm thấy sản phẩm có ID: " + line.getProduct().getId(),
+                    ENTITY_NAME,
+                    "product_not_found"
+                );
+            }
+
+            // ÉP CỨNG GIÁ NHẬP (PURCHASE PRICE) TỪ DB ĐỂ CHỐNG HACK
+            line.setUnitPrice(product.getPurchasePrice());
+
+            if (line.getQuantity() == null) {
+                throw new BadRequestAlertException("Số lượng không hợp lệ!", ENTITY_NAME, "invalid_quantity");
             }
             BigDecimal lineTotal = line.getUnitPrice().multiply(new BigDecimal(line.getQuantity()));
             calculatedTotal = calculatedTotal.add(lineTotal);
@@ -226,10 +257,37 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         purchaseOrderDTO.setPoCode(oldOrder.getPoCode());
         purchaseOrderDTO.setStatus(OrderStatus.DRAFT);
 
+        List<Long> productIds = purchaseOrderDTO
+            .getPurchaseOrderLines()
+            .stream()
+            .map(line -> {
+                if (line.getProduct() == null || line.getProduct().getId() == null) {
+                    throw new BadRequestAlertException("Mặt hàng không được để trống sản phẩm!", ENTITY_NAME, "invalid_product");
+                }
+                return line.getProduct().getId();
+            })
+            .collect(Collectors.toList());
+
+        Map<Long, Product> productMap = productRepository
+            .findAllById(productIds)
+            .stream()
+            .collect(Collectors.toMap(Product::getId, p -> p));
+
         BigDecimal calculatedTotal = BigDecimal.ZERO;
         for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
-            if (line.getUnitPrice() == null || line.getQuantity() == null) {
-                throw new BadRequestAlertException("Mặt hàng không được để trống đơn giá hoặc số lượng!", ENTITY_NAME, "invalid_line_data");
+            Product product = productMap.get(line.getProduct().getId());
+            if (product == null) {
+                throw new BadRequestAlertException(
+                    "Không tìm thấy sản phẩm có ID: " + line.getProduct().getId(),
+                    ENTITY_NAME,
+                    "product_not_found"
+                );
+            }
+
+            line.setUnitPrice(product.getPurchasePrice());
+
+            if (line.getQuantity() == null) {
+                throw new BadRequestAlertException("Số lượng không hợp lệ!", ENTITY_NAME, "invalid_quantity");
             }
             BigDecimal lineTotal = line.getUnitPrice().multiply(new BigDecimal(line.getQuantity()));
             calculatedTotal = calculatedTotal.add(lineTotal);
@@ -292,14 +350,43 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                     if (purchaseOrderDTO.getPurchaseOrderLines().isEmpty()) {
                         throw new BadRequestAlertException("Đơn mua hàng phải có ít nhất một mặt hàng!", ENTITY_NAME, "empty_lines");
                     }
+
+                    List<Long> productIds = purchaseOrderDTO
+                        .getPurchaseOrderLines()
+                        .stream()
+                        .map(line -> {
+                            if (line.getProduct() == null || line.getProduct().getId() == null) {
+                                throw new BadRequestAlertException(
+                                    "Mặt hàng không được để trống sản phẩm!",
+                                    ENTITY_NAME,
+                                    "invalid_product"
+                                );
+                            }
+                            return line.getProduct().getId();
+                        })
+                        .collect(Collectors.toList());
+
+                    Map<Long, Product> productMap = productRepository
+                        .findAllById(productIds)
+                        .stream()
+                        .collect(Collectors.toMap(Product::getId, p -> p));
+
                     BigDecimal calculatedTotal = BigDecimal.ZERO;
                     for (PurchaseOrderLineDTO line : purchaseOrderDTO.getPurchaseOrderLines()) {
-                        if (line.getUnitPrice() == null || line.getQuantity() == null) {
+                        Product product = productMap.get(line.getProduct().getId());
+                        if (product == null) {
                             throw new BadRequestAlertException(
-                                "Mặt hàng không được để trống đơn giá hoặc số lượng!",
+                                "Không tìm thấy sản phẩm có ID: " + line.getProduct().getId(),
                                 ENTITY_NAME,
-                                "invalid_line_data"
+                                "product_not_found"
                             );
+                        }
+
+                        // Ép cứng giá nhập từ bảng Product
+                        line.setUnitPrice(product.getPurchasePrice());
+
+                        if (line.getQuantity() == null) {
+                            throw new BadRequestAlertException("Mặt hàng không được để trống số lượng!", ENTITY_NAME, "invalid_line_data");
                         }
                         calculatedTotal = calculatedTotal.add(line.getUnitPrice().multiply(new BigDecimal(line.getQuantity())));
                     }

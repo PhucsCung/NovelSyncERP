@@ -91,4 +91,41 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
         "salesOrder.warehouse.id in (select emp.scopedWarehouse.id from Employee emp where emp.user.login = :login)"
     )
     Optional<SalesOrder> findOneByIdAndEmployeeScopedWarehouse(@Param("id") Long id, @Param("login") String login);
+
+    // =================================================================================
+    // CÁC HÀM DÀNH RIÊNG CHO TÍNH NĂNG DASHBOARD (THỐNG KÊ)
+    // =================================================================================
+
+    /**
+     * 1. Dành cho Biểu đồ mặc định: Kéo toàn bộ lịch sử đơn hàng ĐÃ CHỐT SỔ.
+     * Có hỗ trợ lọc theo Kho (Nếu warehouseId = null thì tự động lấy tất cả các kho).
+     */
+    @Query(
+        "SELECT DISTINCT so FROM SalesOrder so " +
+        "LEFT JOIN FETCH so.orderLines sol " +
+        "LEFT JOIN FETCH sol.product p " +
+        "WHERE so.status = 'COMPLETED' " +
+        "AND (:warehouseId IS NULL OR so.warehouse.id = :warehouseId) " +
+        "ORDER BY so.createdDate ASC"
+    )
+    List<SalesOrder> findAllCompletedForDashboard(@Param("warehouseId") Long warehouseId);
+
+    /**
+     * 2. Dành cho Bộ lọc chi tiết: Lấy các đơn chốt sổ trong 1 khoảng thời gian cụ thể (1 tháng).
+     * Có hỗ trợ lọc theo Kho.
+     */
+    @Query(
+        "SELECT DISTINCT so FROM SalesOrder so " +
+        "LEFT JOIN FETCH so.orderLines sol " +
+        "LEFT JOIN FETCH sol.product p " +
+        "WHERE so.status = 'COMPLETED' " +
+        "AND (:warehouseId IS NULL OR so.warehouse.id = :warehouseId) " +
+        "AND so.createdDate >= :startDate AND so.createdDate <= :endDate " +
+        "ORDER BY so.createdDate ASC"
+    )
+    List<SalesOrder> findCompletedByTimeRangeForDashboard(
+        @Param("warehouseId") Long warehouseId,
+        @Param("startDate") java.time.Instant startDate,
+        @Param("endDate") java.time.Instant endDate
+    );
 }

@@ -1,10 +1,16 @@
 package com.mycompany.myapp.service.impl;
 
+import com.mycompany.myapp.domain.InventoryBalance;
 import com.mycompany.myapp.domain.Product;
+import com.mycompany.myapp.domain.Warehouse;
+import com.mycompany.myapp.repository.InventoryBalanceRepository;
 import com.mycompany.myapp.repository.ProductRepository;
+import com.mycompany.myapp.repository.WarehouseRepository;
 import com.mycompany.myapp.service.ProductService;
 import com.mycompany.myapp.service.dto.ProductDTO;
 import com.mycompany.myapp.service.mapper.ProductMapper;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,17 +31,45 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository productRepository;
 
     private final ProductMapper productMapper;
+    private final WarehouseRepository warehouseRepository;
+    private final InventoryBalanceRepository inventoryBalanceRepository;
 
-    public ProductServiceImpl(ProductRepository productRepository, ProductMapper productMapper) {
+    public ProductServiceImpl(
+        ProductRepository productRepository,
+        ProductMapper productMapper,
+        WarehouseRepository warehouseRepository,
+        InventoryBalanceRepository inventoryBalanceRepository
+    ) {
         this.productRepository = productRepository;
         this.productMapper = productMapper;
+        this.warehouseRepository = warehouseRepository;
+        this.inventoryBalanceRepository = inventoryBalanceRepository;
     }
 
     @Override
+    @Transactional
     public ProductDTO save(ProductDTO productDTO) {
         log.debug("Request to save Product : {}", productDTO);
+
         Product product = productMapper.toEntity(productDTO);
         product = productRepository.save(product);
+
+        List<Warehouse> allWarehouses = warehouseRepository.findAll();
+        List<InventoryBalance> initialBalances = new ArrayList<>();
+
+        for (Warehouse warehouse : allWarehouses) {
+            InventoryBalance balance = new InventoryBalance();
+            balance.setProduct(product); // Trỏ vào Sản phẩm vừa tạo
+            balance.setWarehouse(warehouse); // Trỏ vào từng Kho
+            balance.setQuantity(0); // Số lượng khởi điểm: 0
+
+            initialBalances.add(balance);
+        }
+
+        if (!initialBalances.isEmpty()) {
+            inventoryBalanceRepository.saveAll(initialBalances);
+        }
+
         return productMapper.toDto(product);
     }
 

@@ -36,8 +36,12 @@ public class Product implements Serializable {
     private String name;
 
     @NotNull
-    @Column(name = "base_price", precision = 21, scale = 2, nullable = false)
-    private BigDecimal basePrice;
+    @Column(name = "purchase_price", precision = 21, scale = 2, nullable = false)
+    private BigDecimal purchasePrice; // Giá vốn / Giá nhập
+
+    @NotNull
+    @Column(name = "selling_price", precision = 21, scale = 2, nullable = false)
+    private BigDecimal sellingPrice; // Giá bán ra
 
     /**
      * Lưu thuộc tính động dạng JSON chuỗi
@@ -46,7 +50,8 @@ public class Product implements Serializable {
     @Column(name = "attributes")
     private String attributes;
 
-    @ManyToOne
+    @ManyToOne(optional = false) // optional = false bắt buộc phải có Category
+    @NotNull(message = "Sản phẩm bắt buộc phải thuộc về 1 Danh mục")
     private Category category;
 
     @NotNull
@@ -107,17 +112,30 @@ public class Product implements Serializable {
         this.name = name;
     }
 
-    public BigDecimal getBasePrice() {
-        return this.basePrice;
+    public BigDecimal getPurchasePrice() {
+        return purchasePrice;
     }
 
-    public Product basePrice(BigDecimal basePrice) {
-        this.setBasePrice(basePrice);
+    public void setPurchasePrice(BigDecimal purchasePrice) {
+        this.purchasePrice = purchasePrice;
+    }
+
+    public Product purchasePrice(BigDecimal purchasePrice) {
+        this.purchasePrice = purchasePrice;
         return this;
     }
 
-    public void setBasePrice(BigDecimal basePrice) {
-        this.basePrice = basePrice;
+    public BigDecimal getSellingPrice() {
+        return sellingPrice;
+    }
+
+    public void setSellingPrice(BigDecimal sellingPrice) {
+        this.sellingPrice = sellingPrice;
+    }
+
+    public Product sellingPrice(BigDecimal sellingPrice) {
+        this.sellingPrice = sellingPrice;
+        return this;
     }
 
     public String getAttributes() {
@@ -172,7 +190,8 @@ public class Product implements Serializable {
             "id=" + getId() +
             ", sku='" + getSku() + "'" +
             ", name='" + getName() + "'" +
-            ", basePrice=" + getBasePrice() +
+            ", purchasePrice=" + getPurchasePrice() +
+            ", salesPrice=" + getSellingPrice() +
             ", attributes='" + getAttributes() + "'" +
             "}";
     }

@@ -22,7 +22,10 @@ public class ProductDTO implements Serializable {
     private String name;
 
     @NotNull
-    private BigDecimal basePrice;
+    private BigDecimal purchasePrice;
+
+    @NotNull
+    private BigDecimal sellingPrice;
 
     /**
      * Lưu thuộc tính động dạng JSON chuỗi
@@ -57,12 +60,20 @@ public class ProductDTO implements Serializable {
         this.name = name;
     }
 
-    public BigDecimal getBasePrice() {
-        return basePrice;
+    public BigDecimal getPurchasePrice() {
+        return purchasePrice;
     }
 
-    public void setBasePrice(BigDecimal basePrice) {
-        this.basePrice = basePrice;
+    public void setPurchasePrice(BigDecimal purchasePrice) {
+        this.purchasePrice = purchasePrice;
+    }
+
+    public BigDecimal getSellingPrice() {
+        return sellingPrice;
+    }
+
+    public void setSellingPrice(BigDecimal sellingPrice) {
+        this.sellingPrice = sellingPrice;
     }
 
     public String getAttributes() {
@@ -109,7 +120,8 @@ public class ProductDTO implements Serializable {
             "id=" + getId() +
             ", sku='" + getSku() + "'" +
             ", name='" + getName() + "'" +
-            ", basePrice=" + getBasePrice() +
+            ", purchasePrice=" + getPurchasePrice() +
+            ", sellingPrice=" + getSellingPrice() +
             ", attributes='" + getAttributes() + "'" +
             ", category=" + getCategory() +
             "}";

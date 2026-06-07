@@ -5,6 +5,8 @@ import com.mycompany.myapp.repository.CustomerRepository;
 import com.mycompany.myapp.service.CustomerService;
 import com.mycompany.myapp.service.dto.CustomerDTO;
 import com.mycompany.myapp.service.mapper.CustomerMapper;
+import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
+import java.math.BigDecimal;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +37,11 @@ public class CustomerServiceImpl implements CustomerService {
     public CustomerDTO save(CustomerDTO customerDTO) {
         log.debug("Request to save Customer : {}", customerDTO);
         Customer customer = customerMapper.toEntity(customerDTO);
+
+        // BẢO MẬT: Ép cứng công nợ = 0 và trạng thái = true khi tạo mới
+        customer.setCurrentDebt(BigDecimal.ZERO);
+        customer.setIsActive(true);
+
         customer = customerRepository.save(customer);
         return customerMapper.toDto(customer);
     }
@@ -42,7 +49,16 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerDTO update(CustomerDTO customerDTO) {
         log.debug("Request to update Customer : {}", customerDTO);
+
+        Customer oldCustomer = customerRepository
+            .findById(customerDTO.getId())
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy Khách hàng", "customer", "id_not_found"));
+
         Customer customer = customerMapper.toEntity(customerDTO);
+
+        customer.setCurrentDebt(oldCustomer.getCurrentDebt());
+        customer.setIsActive(oldCustomer.getIsActive());
+
         customer = customerRepository.save(customer);
         return customerMapper.toDto(customer);
     }
@@ -54,7 +70,12 @@ public class CustomerServiceImpl implements CustomerService {
         return customerRepository
             .findById(customerDTO.getId())
             .map(existingCustomer -> {
+                BigDecimal actualDebt = existingCustomer.getCurrentDebt();
+                Boolean actualActiveStatus = existingCustomer.getIsActive();
+
                 customerMapper.partialUpdate(existingCustomer, customerDTO);
+                existingCustomer.setCurrentDebt(actualDebt);
+                existingCustomer.setIsActive(actualActiveStatus);
 
                 return existingCustomer;
             })

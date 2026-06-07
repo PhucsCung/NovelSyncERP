@@ -19,6 +19,8 @@ public class SalesOrderLineDTO implements Serializable {
     @NotNull
     private BigDecimal unitPrice;
 
+    private BigDecimal discountPercent;
+
     private ProductDTO product;
 
     private SalesOrderDTO salesOrder;
@@ -45,6 +47,14 @@ public class SalesOrderLineDTO implements Serializable {
 
     public void setUnitPrice(BigDecimal unitPrice) {
         this.unitPrice = unitPrice;
+    }
+
+    public BigDecimal getDiscountPercent() {
+        return discountPercent;
+    }
+
+    public void setDiscountPercent(BigDecimal discountPercent) {
+        this.discountPercent = discountPercent;
     }
 
     public ProductDTO getProduct() {
@@ -91,8 +101,8 @@ public class SalesOrderLineDTO implements Serializable {
             "id=" + getId() +
             ", quantity=" + getQuantity() +
             ", unitPrice=" + getUnitPrice() +
+            ", discountPercent=" + getDiscountPercent() +
             ", product=" + getProduct() +
-            ", salesOrder=" + getSalesOrder() +
             "}";
     }
 }

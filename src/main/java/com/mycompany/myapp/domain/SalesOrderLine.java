@@ -32,6 +32,9 @@ public class SalesOrderLine implements Serializable {
     @Column(name = "unit_price", precision = 21, scale = 2, nullable = false)
     private BigDecimal unitPrice;
 
+    @Column(name = "discount_percent", precision = 21, scale = 2)
+    private BigDecimal discountPercent;
+
     @ManyToOne
     @JsonIgnoreProperties(value = { "category" }, allowSetters = true)
     private Product product;
@@ -79,6 +82,19 @@ public class SalesOrderLine implements Serializable {
 
     public void setUnitPrice(BigDecimal unitPrice) {
         this.unitPrice = unitPrice;
+    }
+
+    public BigDecimal getDiscountPercent() {
+        return this.discountPercent;
+    }
+
+    public SalesOrderLine discountPercent(BigDecimal discountPercent) {
+        this.setDiscountPercent(discountPercent);
+        return this;
+    }
+
+    public void setDiscountPercent(BigDecimal discountPercent) {
+        this.discountPercent = discountPercent;
     }
 
     public Product getProduct() {
@@ -133,6 +149,7 @@ public class SalesOrderLine implements Serializable {
             "id=" + getId() +
             ", quantity=" + getQuantity() +
             ", unitPrice=" + getUnitPrice() +
+            ", discountPercent=" + getDiscountPercent() +
             "}";
     }
 }

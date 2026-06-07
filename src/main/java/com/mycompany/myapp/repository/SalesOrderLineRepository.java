@@ -39,4 +39,15 @@ public interface SalesOrderLineRepository extends JpaRepository<SalesOrderLine, 
     Optional<SalesOrderLine> findOneWithToOneRelationships(@Param("id") Long id);
 
     List<SalesOrderLine> findBySalesOrderId(Long SalesOrderId);
+
+    // Lấy toàn bộ các dòng chi tiết đơn hàng ĐÃ HOÀN THÀNH của 1 sản phẩm tại 1 kho
+    @Query(
+        "SELECT sol FROM SalesOrderLine sol " +
+        "JOIN FETCH sol.salesOrder so " +
+        "WHERE sol.product.id = :productId " +
+        "AND so.warehouse.id = :warehouseId " +
+        "AND so.status = 'COMPLETED' " +
+        "ORDER BY so.id DESC"
+    ) // Sắp xếp giảm dần để lấy dữ liệu mới nhất
+    List<SalesOrderLine> findCompletedSalesHistory(@Param("productId") Long productId, @Param("warehouseId") Long warehouseId);
 }

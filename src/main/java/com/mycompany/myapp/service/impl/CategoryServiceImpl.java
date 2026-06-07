@@ -5,6 +5,7 @@ import com.mycompany.myapp.repository.CategoryRepository;
 import com.mycompany.myapp.service.CategoryService;
 import com.mycompany.myapp.service.dto.CategoryDTO;
 import com.mycompany.myapp.service.mapper.CategoryMapper;
+import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryDTO save(CategoryDTO categoryDTO) {
         log.debug("Request to save Category : {}", categoryDTO);
         Category category = categoryMapper.toEntity(categoryDTO);
+        category.setIsActive(true);
         category = categoryRepository.save(category);
         return categoryMapper.toDto(category);
     }
@@ -42,7 +44,15 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryDTO update(CategoryDTO categoryDTO) {
         log.debug("Request to update Category : {}", categoryDTO);
+
+        Category oldCategory = categoryRepository
+            .findById(categoryDTO.getId())
+            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy Danh mục", "category", "id_not_found"));
+
         Category category = categoryMapper.toEntity(categoryDTO);
+
+        category.setCode(oldCategory.getCode());
+
         category = categoryRepository.save(category);
         return categoryMapper.toDto(category);
     }
@@ -54,7 +64,11 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryRepository
             .findById(categoryDTO.getId())
             .map(existingCategory -> {
+                String actualCode = existingCategory.getCode();
+
                 categoryMapper.partialUpdate(existingCategory, categoryDTO);
+
+                existingCategory.setCode(actualCode);
 
                 return existingCategory;
             })

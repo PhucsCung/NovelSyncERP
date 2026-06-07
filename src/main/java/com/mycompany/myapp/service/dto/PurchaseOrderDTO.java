@@ -3,6 +3,7 @@ package com.mycompany.myapp.service.dto;
 import com.mycompany.myapp.domain.enumeration.OrderStatus;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import javax.validation.constraints.*;
@@ -31,6 +32,16 @@ public class PurchaseOrderDTO implements Serializable {
 
     // 1. Thêm cái giỏ đựng danh sách mặt hàng
     private List<PurchaseOrderLineDTO> purchaseOrderLines;
+
+    private Instant createdDate;
+
+    public Instant getCreatedDate() {
+        return createdDate;
+    }
+
+    public void setCreatedDate(Instant createdDate) {
+        this.createdDate = createdDate;
+    }
 
     public Long getId() {
         return id;
@@ -129,6 +140,7 @@ public class PurchaseOrderDTO implements Serializable {
             ", supplier=" + getSupplier() +
             ", employee=" + getEmployee() +
             ", warehouse=" + getWarehouse() +
+            ", createdDate=" + getCreatedDate() +
             "}";
     }
 }

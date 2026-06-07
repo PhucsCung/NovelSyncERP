@@ -18,7 +18,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Table(name = "sales_order")
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @SuppressWarnings("common-java:DuplicatedBlocks")
-public class SalesOrder implements Serializable {
+public class SalesOrder extends AbstractAuditingEntity implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -205,6 +205,7 @@ public class SalesOrder implements Serializable {
             ", orderCode='" + getOrderCode() + "'" +
             ", totalAmount=" + getTotalAmount() +
             ", status='" + getStatus() + "'" +
+            ", createdDate='" + getCreatedDate() + "'" +
             "}";
     }
 }

@@ -17,7 +17,7 @@ import org.hibernate.annotations.CacheConcurrencyStrategy;
 @Table(name = "transfer_order")
 @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 @SuppressWarnings("common-java:DuplicatedBlocks")
-public class TransferOrder implements Serializable {
+public class TransferOrder extends AbstractAuditingEntity implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
