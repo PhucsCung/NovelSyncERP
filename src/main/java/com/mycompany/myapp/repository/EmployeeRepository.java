@@ -27,18 +27,21 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     }
 
     @Query(
-        value = "select distinct employee from Employee employee left join fetch employee.user left join fetch employee.manager left join fetch employee.scopedWarehouse",
+        // Đã xóa: left join fetch employee.manager
+        value = "select distinct employee from Employee employee left join fetch employee.user left join fetch employee.scopedWarehouse",
         countQuery = "select count(distinct employee) from Employee employee"
     )
     Page<Employee> findAllWithToOneRelationships(Pageable pageable);
 
     @Query(
-        "select distinct employee from Employee employee left join fetch employee.user left join fetch employee.manager left join fetch employee.scopedWarehouse"
+        // Đã xóa: left join fetch employee.manager
+        "select distinct employee from Employee employee left join fetch employee.user left join fetch employee.scopedWarehouse"
     )
     List<Employee> findAllWithToOneRelationships();
 
     @Query(
-        "select employee from Employee employee left join fetch employee.user left join fetch employee.manager left join fetch employee.scopedWarehouse where employee.id =:id"
+        // Đã xóa: left join fetch employee.manager
+        "select employee from Employee employee left join fetch employee.user left join fetch employee.scopedWarehouse where employee.id =:id"
     )
     Optional<Employee> findOneWithToOneRelationships(@Param("id") Long id);
 

@@ -1,11 +1,11 @@
-id;po_code;total_amount;status
-1;invoice;92856;COMPLETED
-2;Directives reciprocal Soft;56048;CANCELLED
-3;deposit;56543;APPROVED
-4;Agent scale HDD;40249;COMPLETED
-5;International bypassing Guadeloupe;572;PROCESSING
-6;Bike systems back;89206;APPROVED
-7;Identity tan;90276;COMPLETED
-8;tangible invoice;87815;CANCELLED
-9;bandwidth-monitored Direct;40755;CANCELLED
-10;synthesizing Berkshire;74007;COMPLETED
+id;po_code;total_amount;status;created_by;created_date;last_modified_by;last_modified_date
+1;invoice;92856;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+2;Directives reciprocal Soft;56048;CANCELLED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+3;deposit;56543;APPROVED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+4;Agent scale HDD;40249;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+5;International bypassing Guadeloupe;572;PROCESSING;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+6;Bike systems back;89206;APPROVED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+7;Identity tan;90276;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+8;tangible invoice;87815;CANCELLED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+9;bandwidth-monitored Direct;40755;CANCELLED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+10;synthesizing Berkshire;74007;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00

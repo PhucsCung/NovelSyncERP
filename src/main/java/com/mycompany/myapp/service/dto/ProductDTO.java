@@ -31,7 +31,6 @@ public class ProductDTO implements Serializable {
      * Lưu thuộc tính động dạng JSON chuỗi
      */
     @Schema(description = "Lưu thuộc tính động dạng JSON chuỗi")
-    @Lob
     private String attributes;
 
     private CategoryDTO category;

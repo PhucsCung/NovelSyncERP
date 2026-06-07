@@ -38,9 +38,9 @@ public class Employee implements Serializable {
     @JoinColumn(unique = true)
     private User user;
 
-    @ManyToOne
-    @JsonIgnoreProperties(value = { "user", "manager", "scopedWarehouse", "department" }, allowSetters = true)
-    private Employee manager;
+    //    @ManyToOne
+    //    @JsonIgnoreProperties(value = { "user", "manager", "scopedWarehouse", "department" }, allowSetters = true)
+    //    private Employee manager;
 
     @ManyToOne
     private Warehouse scopedWarehouse;
@@ -120,18 +120,18 @@ public class Employee implements Serializable {
         return this;
     }
 
-    public Employee getManager() {
-        return this.manager;
-    }
-
-    public void setManager(Employee employee) {
-        this.manager = employee;
-    }
-
-    public Employee manager(Employee employee) {
-        this.setManager(employee);
-        return this;
-    }
+    //    public Employee getManager() {
+    //        return this.manager;
+    //    }
+    //
+    //    public void setManager(Employee employee) {
+    //        this.manager = employee;
+    //    }
+    //
+    //    public Employee manager(Employee employee) {
+    //        this.setManager(employee);
+    //        return this;
+    //    }
 
     public Warehouse getScopedWarehouse() {
         return this.scopedWarehouse;

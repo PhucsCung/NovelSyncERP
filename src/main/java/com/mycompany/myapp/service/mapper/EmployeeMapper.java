@@ -16,7 +16,7 @@ import org.mapstruct.*;
 @Mapper(componentModel = "spring")
 public interface EmployeeMapper extends EntityMapper<EmployeeDTO, Employee> {
     @Mapping(target = "user", source = "user", qualifiedByName = "userLogin")
-    @Mapping(target = "manager", source = "manager", qualifiedByName = "employeeFullName")
+    //    @Mapping(target = "manager", source = "manager", qualifiedByName = "employeeFullName")
     @Mapping(target = "scopedWarehouse", source = "scopedWarehouse", qualifiedByName = "warehouseName")
     @Mapping(target = "department", source = "department", qualifiedByName = "departmentId")
     EmployeeDTO toDto(Employee s);
@@ -27,11 +27,11 @@ public interface EmployeeMapper extends EntityMapper<EmployeeDTO, Employee> {
     @Mapping(target = "login", source = "login")
     UserDTO toDtoUserLogin(User user);
 
-    @Named("employeeFullName")
-    @BeanMapping(ignoreByDefault = true)
-    @Mapping(target = "id", source = "id")
-    @Mapping(target = "fullName", source = "fullName")
-    EmployeeDTO toDtoEmployeeFullName(Employee employee);
+    //    @Named("employeeFullName")
+    //    @BeanMapping(ignoreByDefault = true)
+    //    @Mapping(target = "id", source = "id")
+    //    @Mapping(target = "fullName", source = "fullName")
+    //    EmployeeDTO toDtoEmployeeFullName(Employee employee);
 
     @Named("warehouseName")
     @BeanMapping(ignoreByDefault = true)

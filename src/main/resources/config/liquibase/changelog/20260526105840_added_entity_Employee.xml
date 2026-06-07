@@ -23,9 +23,9 @@
             <column name="user_id" type="bigint">
                 <constraints nullable="true" unique="true" uniqueConstraintName="ux_employee__user_id" />
             </column>
-            <column name="manager_id" type="bigint">
-                <constraints nullable="true" />
-            </column>
+<!--            <column name="manager_id" type="bigint">-->
+<!--                <constraints nullable="true" />-->
+<!--            </column>-->
             <column name="scoped_warehouse_id" type="bigint">
                 <constraints nullable="true" />
             </column>

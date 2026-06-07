@@ -46,8 +46,7 @@ public class Product implements Serializable {
     /**
      * Lưu thuộc tính động dạng JSON chuỗi
      */
-    @Lob
-    @Column(name = "attributes")
+    @Column(name = "attributes", columnDefinition = "json")
     private String attributes;
 
     @ManyToOne(optional = false) // optional = false bắt buộc phải có Category

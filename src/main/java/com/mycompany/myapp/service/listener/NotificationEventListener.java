@@ -56,14 +56,14 @@ public class NotificationEventListener {
                 );
 
                 // 2. Thông báo cho Sếp (Quản lý trực tiếp)
-                if (originalCreator.getManager() != null) {
-                    sendNotification(
-                        originalCreator.getManager(),
-                        "🔔 Có " + typeName + " mới cần duyệt!",
-                        "Nhân viên " + originalCreator.getFullName() + " vừa tạo đơn: " + event.getOrderCode(),
-                        event.getOrderId()
-                    );
-                }
+                //                if (originalCreator.getManager() != null) {
+                //                    sendNotification(
+                //                        originalCreator.getManager(),
+                //                        "🔔 Có " + typeName + " mới cần duyệt!",
+                //                        "Nhân viên " + originalCreator.getFullName() + " vừa tạo đơn: " + event.getOrderCode(),
+                //                        event.getOrderId()
+                //                    );
+                //                }
                 break;
             case "APPROVED":
                 // Báo cho nhân viên biết Sếp đã duyệt

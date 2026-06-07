@@ -1,7 +1,7 @@
 id;sku;name;purchase_price;selling_price;attributes;is_active;category_id
 1;Steel;Assistant;57374;1000000;{};true;1
 2;monetize Consultant wireless;Handmade;76808;1000000;{};true;1
-3;deposit Track actuating;Unbranded Soap;63081;;1000000;{};true;1
+3;deposit Track actuating;Unbranded Soap;63081;1000000;{};true;1
 4;navigating Michigan;Infrastructure;91058;1000000;{};true;1
 5;compressing withdrawal green;Bedfordshire Lao neutral;4184;1000000;{};true;1
 6;Business-focused;Rubber;95238;1000000;{};true;1

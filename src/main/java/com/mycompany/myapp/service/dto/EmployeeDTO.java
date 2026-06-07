@@ -19,7 +19,7 @@ public class EmployeeDTO implements Serializable {
 
     private UserDTO user;
 
-    private EmployeeDTO manager;
+    //    private EmployeeDTO manager;
 
     private WarehouseDTO scopedWarehouse;
 
@@ -57,13 +57,13 @@ public class EmployeeDTO implements Serializable {
         this.user = user;
     }
 
-    public EmployeeDTO getManager() {
-        return manager;
-    }
-
-    public void setManager(EmployeeDTO manager) {
-        this.manager = manager;
-    }
+    //    public EmployeeDTO getManager() {
+    //        return manager;
+    //    }
+    //
+    //    public void setManager(EmployeeDTO manager) {
+    //        this.manager = manager;
+    //    }
 
     public WarehouseDTO getScopedWarehouse() {
         return scopedWarehouse;
@@ -110,7 +110,7 @@ public class EmployeeDTO implements Serializable {
             ", fullName='" + getFullName() + "'" +
             ", phone='" + getPhone() + "'" +
             ", user=" + getUser() +
-            ", manager=" + getManager() +
+//            ", manager=" + getManager() +
             ", scopedWarehouse=" + getScopedWarehouse() +
             ", department=" + getDepartment() +
             "}";
