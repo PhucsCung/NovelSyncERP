@@ -20,6 +20,7 @@ public interface PurchaseOrderLineMapper extends EntityMapper<PurchaseOrderLineD
     @Named("productName")
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "sku", source = "sku")
     @Mapping(target = "name", source = "name")
     ProductDTO toDtoProductName(Product product);
 

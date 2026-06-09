@@ -46,6 +46,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     private final InventoryBalanceRepository inventoryBalanceRepository;
     private final PurchaseOrderLineMapper purchaseOrderLineMapper;
     private final SupplierRepository supplierRepository;
+    private final WarehouseRepository warehouseRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EmployeeRepository employeeRepository;
     private final ProductRepository productRepository;
@@ -58,6 +59,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         InventoryBalanceRepository inventoryBalanceRepository,
         PurchaseOrderLineMapper purchaseOrderLineMapper,
         SupplierRepository supplierRepository,
+        WarehouseRepository warehouseRepository,
         ApplicationEventPublisher eventPublisher,
         EmployeeRepository employeeRepository,
         ProductRepository productRepository
@@ -69,6 +71,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         this.inventoryBalanceRepository = inventoryBalanceRepository;
         this.purchaseOrderLineMapper = purchaseOrderLineMapper;
         this.supplierRepository = supplierRepository;
+        this.warehouseRepository = warehouseRepository;
         this.eventPublisher = eventPublisher;
         this.employeeRepository = employeeRepository;
         this.productRepository = productRepository;
@@ -196,13 +199,23 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new BadRequestAlertException("Tổng tiền đơn hàng không hợp lệ!", ENTITY_NAME, "total_amount_mismatch");
         }
 
+        Supplier supplier = supplierRepository
+            .findById(purchaseOrderDTO.getSupplier().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Supplier not found", ENTITY_NAME, "supplier_not_found"));
+        Warehouse warehouse = warehouseRepository
+            .findById(purchaseOrderDTO.getWarehouse().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Warehouse not found", ENTITY_NAME, "warehouse_not_found"));
+
         PurchaseOrder purchaseOrder = purchaseOrderMapper.toEntity(purchaseOrderDTO);
+        purchaseOrder.setSupplier(supplier);
+        purchaseOrder.setWarehouse(warehouse);
         purchaseOrder.setEmployee(currentEmployee);
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
 
         List<PurchaseOrderLine> linesToSave = new ArrayList<>();
         for (PurchaseOrderLineDTO lineDTO : purchaseOrderDTO.getPurchaseOrderLines()) {
             PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
+            line.setProduct(productMap.get(lineDTO.getProduct().getId()));
             line.setPurchaseOrder(purchaseOrder);
             linesToSave.add(line);
         }
@@ -297,7 +310,16 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new BadRequestAlertException("Tổng tiền đơn hàng không hợp lệ!", ENTITY_NAME, "total_amount_mismatch");
         }
 
+        Supplier supplier = supplierRepository
+            .findById(purchaseOrderDTO.getSupplier().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Supplier not found", ENTITY_NAME, "supplier_not_found"));
+        Warehouse warehouse = warehouseRepository
+            .findById(purchaseOrderDTO.getWarehouse().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Warehouse not found", ENTITY_NAME, "warehouse_not_found"));
+
         PurchaseOrder purchaseOrder = purchaseOrderMapper.toEntity(purchaseOrderDTO);
+        purchaseOrder.setSupplier(supplier);
+        purchaseOrder.setWarehouse(warehouse);
         purchaseOrder.setEmployee(oldOrder.getEmployee());
         purchaseOrder = purchaseOrderRepository.save(purchaseOrder);
 
@@ -307,6 +329,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         List<PurchaseOrderLine> newLines = new ArrayList<>();
         for (PurchaseOrderLineDTO lineDTO : purchaseOrderDTO.getPurchaseOrderLines()) {
             PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
+            line.setProduct(productMap.get(lineDTO.getProduct().getId()));
             line.setPurchaseOrder(purchaseOrder);
             newLines.add(line);
         }
@@ -408,6 +431,10 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                     List<PurchaseOrderLine> newLines = new ArrayList<>();
                     for (PurchaseOrderLineDTO lineDTO : purchaseOrderDTO.getPurchaseOrderLines()) {
                         PurchaseOrderLine line = purchaseOrderLineMapper.toEntity(lineDTO);
+                        Product product = productRepository
+                            .findById(lineDTO.getProduct().getId())
+                            .orElseThrow(() -> new BadRequestAlertException("Product not found", ENTITY_NAME, "product_not_found"));
+                        line.setProduct(product);
                         line.setPurchaseOrder(savedOrder);
                         newLines.add(line);
                     }

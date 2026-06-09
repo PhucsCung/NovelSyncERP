@@ -79,7 +79,7 @@ public class TransferOrderServiceImpl implements TransferOrderService {
             return employee;
         }
 
-        //Bắt buộc phải là nhân viên phòng Kho vận (WAREHOUSE)
+        // Bắt buộc phải là nhân viên phòng Kho vận (WAREHOUSE)
         if (
             employee.getDepartment() == null ||
             employee.getDepartment().getName() != com.mycompany.myapp.domain.enumeration.DepartmentName.WAREHOUSE
@@ -87,7 +87,7 @@ public class TransferOrderServiceImpl implements TransferOrderService {
             throw new BadRequestAlertException("Tài khoản của bạn không thuộc phòng Kho vận!", ENTITY_NAME, "invalid_department");
         }
 
-        //Phải được phân công kho và thao tác đúng kho xuất
+        // Phải được phân công kho và thao tác đúng kho xuất
         if (employee.getScopedWarehouse() == null) {
             throw new BadRequestAlertException("Tài khoản chưa được phân công về kho nào!", ENTITY_NAME, "no_scoped_warehouse");
         }
@@ -295,8 +295,10 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
     private Page<TransferOrderDTO> getFilteredOrders(Pageable pageable, boolean eager) {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
-        //        boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
-        //        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
+        // boolean isManager =
+        // SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        // boolean isShipper =
+        // SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         if (isAdmin) {
             if (eager) return transferOrderRepository.findAllWithEagerRelationships(pageable).map(transferOrderMapper::toDto);

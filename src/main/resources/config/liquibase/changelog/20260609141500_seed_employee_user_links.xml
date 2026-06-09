@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="20260609141500-1" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="employee"/>
+            <tableExists tableName="jhi_user"/>
+            <tableExists tableName="warehouse"/>
+            <tableExists tableName="department"/>
+        </preConditions>
+
+        <update tableName="employee">
+            <column name="user_id" valueNumeric="1"/>
+            <column name="scoped_warehouse_id" valueNumeric="1"/>
+            <column name="department_id" valueNumeric="1"/>
+            <where>id = 1 AND user_id IS NULL</where>
+        </update>
+
+        <update tableName="employee">
+            <column name="user_id" valueNumeric="2"/>
+            <column name="scoped_warehouse_id" valueNumeric="1"/>
+            <column name="department_id" valueNumeric="1"/>
+            <where>id = 2 AND user_id IS NULL</where>
+        </update>
+
+        <update tableName="employee">
+            <column name="user_id" valueNumeric="5"/>
+            <column name="scoped_warehouse_id" valueNumeric="1"/>
+            <column name="department_id" valueNumeric="1"/>
+            <where>id = 3 AND user_id IS NULL</where>
+        </update>
+
+        <update tableName="employee">
+            <column name="user_id" valueNumeric="6"/>
+            <column name="scoped_warehouse_id" valueNumeric="1"/>
+            <column name="department_id" valueNumeric="8"/>
+            <where>id = 4 AND user_id IS NULL</where>
+        </update>
+
+        <update tableName="employee">
+            <column name="user_id" valueNumeric="7"/>
+            <column name="scoped_warehouse_id" valueNumeric="1"/>
+            <column name="department_id" valueNumeric="1"/>
+            <where>id = 5 AND user_id IS NULL</where>
+        </update>
+    </changeSet>
+</databaseChangeLog>

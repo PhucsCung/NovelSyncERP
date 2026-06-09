@@ -1,5 +1,6 @@
 package com.mycompany.myapp.service.dto;
 
+import com.mycompany.myapp.domain.enumeration.PaymentStatus;
 import com.mycompany.myapp.domain.enumeration.PaymentType;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -20,6 +21,9 @@ public class PaymentDTO implements Serializable {
 
     @NotNull
     private PaymentType type;
+
+    @NotNull
+    private PaymentStatus status;
 
     @NotNull
     private BigDecimal amount;
@@ -55,6 +59,14 @@ public class PaymentDTO implements Serializable {
 
     public void setType(PaymentType type) {
         this.type = type;
+    }
+
+    public PaymentStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PaymentStatus status) {
+        this.status = status;
     }
 
     public BigDecimal getAmount() {
@@ -125,6 +137,7 @@ public class PaymentDTO implements Serializable {
             "id=" + getId() +
             ", paymentCode='" + getPaymentCode() + "'" +
             ", type='" + getType() + "'" +
+            ", status='" + getStatus() + "'" +
             ", amount=" + getAmount() +
             ", referenceOrderId=" + getReferenceOrderId() +
             ", createdAt='" + getCreatedAt() + "'" +
