@@ -46,4 +46,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findOneWithToOneRelationships(@Param("id") Long id);
 
     Optional<Employee> findByUserLogin(String login);
+
+    @Query(
+        "select distinct employee from Employee employee " +
+        "join fetch employee.user user " +
+        "join user.authorities authority " +
+        "left join fetch employee.scopedWarehouse " +
+        "where authority.name = :authority"
+    )
+    List<Employee> findByUserAuthority(@Param("authority") String authority);
 }

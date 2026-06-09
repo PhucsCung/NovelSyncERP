@@ -141,6 +141,12 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         }
     }
 
+    private String getCreatorLogin(TransferOrder order, String fallbackLogin) {
+        return order.getEmployee() != null && order.getEmployee().getUser() != null
+            ? order.getEmployee().getUser().getLogin()
+            : fallbackLogin;
+    }
+
     @Override
     public TransferOrderDTO save(TransferOrderDTO transferOrderDTO) {
         log.debug("Request to save TransferOrder : {}", transferOrderDTO);
@@ -351,7 +357,21 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         processOutboundTransfer(order, false); // CHỈ TRỪ KHO A
         order.setStatus(OrderStatus.APPROVED);
-        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+        order = transferOrderRepository.save(order);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "TRANSFER",
+                "APPROVED",
+                order.getId(),
+                order.getTransferCode(),
+                currentLogin,
+                getCreatorLogin(order, currentLogin)
+            )
+        );
+
+        return transferOrderMapper.toDto(order);
     }
 
     @Transactional
@@ -370,7 +390,21 @@ public class TransferOrderServiceImpl implements TransferOrderService {
             processOutboundTransfer(order, true);
         }
         order.setStatus(OrderStatus.CANCELLED);
-        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+        order = transferOrderRepository.save(order);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "TRANSFER",
+                "CANCELLED",
+                order.getId(),
+                order.getTransferCode(),
+                currentLogin,
+                getCreatorLogin(order, currentLogin)
+            )
+        );
+
+        return transferOrderMapper.toDto(order);
     }
 
     @Transactional
@@ -384,7 +418,21 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         );
 
         order.setStatus(OrderStatus.PROCESSING);
-        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+        order = transferOrderRepository.save(order);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "TRANSFER",
+                "PROCESSING",
+                order.getId(),
+                order.getTransferCode(),
+                currentLogin,
+                getCreatorLogin(order, currentLogin)
+            )
+        );
+
+        return transferOrderMapper.toDto(order);
     }
 
     @Transactional
@@ -399,14 +447,7 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         // Đánh tiếng cho Kho B ra nhận hàng
         eventPublisher.publishEvent(
-            new OrderNotificationEvent(
-                "TRANSFER",
-                "ARRIVED",
-                order.getId(),
-                "Xe hàng điều chuyển " + order.getTransferCode() + " đã tới. Kho B kiểm đếm và nhận hàng!",
-                "System",
-                "WAREHOUSE_GROUP"
-            )
+            new OrderNotificationEvent("TRANSFER", "ARRIVED", order.getId(), order.getTransferCode(), "System", "WAREHOUSE_GROUP")
         );
         return transferOrderMapper.toDto(order);
     }
@@ -425,7 +466,21 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         processInboundTransfer(order); // CỘNG KHO B
         order.setStatus(OrderStatus.COMPLETED);
-        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+        order = transferOrderRepository.save(order);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent(
+                "TRANSFER",
+                "COMPLETED",
+                order.getId(),
+                order.getTransferCode(),
+                currentLogin,
+                getCreatorLogin(order, currentLogin)
+            )
+        );
+
+        return transferOrderMapper.toDto(order);
     }
 
     /**

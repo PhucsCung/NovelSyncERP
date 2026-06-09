@@ -47,12 +47,9 @@ public class NotificationServiceImpl implements NotificationService {
 
         NotificationDTO result = notificationMapper.toDto(notification);
 
-        // 3. LOGIC BẮN WEBSOCKET NẰM Ở ĐÂY 👇
         if (notification.getRecipient() != null && notification.getRecipient().getUser() != null) {
             String targetUser = notification.getRecipient().getUser().getLogin();
-
-            log.info("🔔 Bắn thông báo Real-time cho User: {}", targetUser);
-            // Gửi gói tin result (chính là NotificationDTO) vào đường ống của ông targetUser
+            log.info("Send realtime notification to user: {}", targetUser);
             messagingTemplate.convertAndSendToUser(targetUser, "/queue/notifications", result);
         }
 
@@ -109,7 +106,6 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional(readOnly = true)
     public Page<NotificationDTO> findLatestByUserLogin(String login, Pageable pageable) {
         log.debug("Request to get latest notifications for user : {}", login);
-
         return notificationRepository.findLatestByUserLogin(login, pageable).map(notificationMapper::toDto);
     }
 }

@@ -2,19 +2,11 @@ package com.mycompany.myapp.service.event;
 
 public class OrderNotificationEvent {
 
-    // Phân loại: "SALES", "PURCHASE", "TRANSFER"
     private final String orderType;
-
-    // Hành động: "CREATED" (Tạo nháp), "APPROVED" (Duyệt), "COMPLETED" (Hoàn thành), "CANCELLED" (Hủy)
     private final String action;
-
     private final Long orderId;
     private final String orderCode;
-
-    // Người đang thao tác (Ví dụ: Nhân viên bấm tạo đơn, hoặc Sếp bấm duyệt đơn)
     private final String actionByUserLogin;
-
-    // Chủ nhân gốc của đơn hàng (Để khi Sếp duyệt thì biết đường gửi thông báo báo lại cho nhân viên này)
     private final String originalCreatorLogin;
 
     public OrderNotificationEvent(
@@ -33,7 +25,6 @@ public class OrderNotificationEvent {
         this.originalCreatorLogin = originalCreatorLogin;
     }
 
-    // Các Getters (Bắt buộc phải có để Listener lấy dữ liệu)
     public String getOrderType() {
         return orderType;
     }

@@ -798,7 +798,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 "PURCHASE",
                 "PROCESSING",
                 order.getId(),
-                "Shipper đang chở hàng về kho",
+                order.getPoCode(),
                 "System",
                 order.getEmployee().getUser().getLogin()
             )
@@ -818,14 +818,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         // Bắn Noti gọi Thủ kho ra nhận hàng, Kế toán chuẩn bị chốt tiền
         eventPublisher.publishEvent(
-            new OrderNotificationEvent(
-                "PURCHASE",
-                "ARRIVED",
-                order.getId(),
-                "Xe hàng " + order.getPoCode() + " đã về tới. Thủ kho ra nhận hàng!",
-                "System",
-                "WAREHOUSE_GROUP"
-            )
+            new OrderNotificationEvent("PURCHASE", "ARRIVED", order.getId(), order.getPoCode(), "System", "WAREHOUSE_GROUP")
         );
         return purchaseOrderMapper.toDto(order);
     }

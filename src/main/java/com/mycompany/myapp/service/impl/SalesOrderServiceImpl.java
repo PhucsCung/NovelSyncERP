@@ -751,7 +751,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 "SALES",
                 "PROCESSING",
                 order.getId(),
-                "Shipper đang giao hàng tới khách",
+                order.getOrderCode(),
                 "System",
                 order.getEmployee().getUser().getLogin()
             )
@@ -777,7 +777,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 "SALES",
                 "DELIVERED_WAITING_PAYMENT",
                 order.getId(),
-                "Đơn " + order.getOrderCode() + " đã giao xong. Kế toán kiểm tra dòng tiền để chốt sổ!",
+                order.getOrderCode(),
                 currentLogin,
                 "ACCOUNTANT_GROUP"
             )
