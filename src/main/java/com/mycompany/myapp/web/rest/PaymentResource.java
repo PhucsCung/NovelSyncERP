@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -59,6 +60,15 @@ public class PaymentResource {
         this.salesOrderRepository = salesOrderRepository;
     }
 
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.SHIPPER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @PostMapping("/payments/create-vnpay-url")
     public ResponseEntity<Map<String, String>> createVNPayUrl(@RequestParam Long orderId, javax.servlet.http.HttpServletRequest request) {
         log.debug("REST request để tạo Link thanh toán VNPay cho đơn hàng: {}", orderId);
@@ -83,6 +93,15 @@ public class PaymentResource {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.SHIPPER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @GetMapping("/payments")
     public ResponseEntity<List<PaymentDTO>> getAllPayments(
         @org.springdoc.api.annotations.ParameterObject Pageable pageable,
@@ -99,6 +118,15 @@ public class PaymentResource {
         return ResponseEntity.ok().headers(headers).body(page.getContent());
     }
 
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.SHIPPER +
+        "\", \"" +
+        AuthoritiesConstants.ACCOUNTANT +
+        "\")"
+    )
     @GetMapping("/payments/{id}")
     public ResponseEntity<PaymentDTO> getPayment(@PathVariable Long id) {
         log.debug("REST request to get Payment : {}", id);
@@ -112,6 +140,13 @@ public class PaymentResource {
     @PostMapping("/payments/vnpay-webhook")
     public ResponseEntity<Void> receiveVNPayWebhook(@RequestBody Map<String, Object> payload) {
         log.debug("REST request to handle VNPay Webhook: {}", payload);
+
+        //        // 1. Kiểm tra chữ ký (Signature Validation) - CỰC KỲ QUAN TRỌNG
+        //        boolean isValid = vnPayService.verifySignature(payload);
+        //        if (!isValid) {
+        //            log.error("CẢNH BÁO: Phát hiện request giả mạo webhook VNPay!");
+        //            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        //        }
 
         // Tự động bóc tách data giả lập từ VNPay
         String bankTxnId = payload.get("vnp_TransactionNo").toString();

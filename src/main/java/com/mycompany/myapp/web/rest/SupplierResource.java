@@ -173,6 +173,15 @@ public class SupplierResource {
      * @param pageable the pagination information.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of suppliers in body.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\")"
+    )
     @GetMapping("/suppliers")
     public ResponseEntity<List<SupplierDTO>> getAllSuppliers(@org.springdoc.api.annotations.ParameterObject Pageable pageable) {
         log.debug("REST request to get a page of Suppliers");
@@ -187,6 +196,15 @@ public class SupplierResource {
      * @param id the id of the supplierDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the supplierDTO, or with status {@code 404 (Not Found)}.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\")"
+    )
     @GetMapping("/suppliers/{id}")
     public ResponseEntity<SupplierDTO> getSupplier(@PathVariable Long id) {
         log.debug("REST request to get Supplier : {}", id);

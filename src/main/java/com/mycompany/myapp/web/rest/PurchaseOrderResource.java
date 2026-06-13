@@ -185,6 +185,8 @@ public class PurchaseOrderResource {
         "\", \"" +
         AuthoritiesConstants.PURCHASER +
         "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
+        "\", \"" +
         AuthoritiesConstants.ACCOUNTANT +
         "\")"
     )
@@ -219,6 +221,8 @@ public class PurchaseOrderResource {
         AuthoritiesConstants.SHIPPER +
         "\", \"" +
         AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
         "\", \"" +
         AuthoritiesConstants.ACCOUNTANT +
         "\")"

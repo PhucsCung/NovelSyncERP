@@ -173,6 +173,15 @@ public class CustomerResource {
      * @param pageable the pagination information.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of customers in body.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.SALES +
+        "\")"
+    )
     @GetMapping("/customers")
     public ResponseEntity<List<CustomerDTO>> getAllCustomers(@org.springdoc.api.annotations.ParameterObject Pageable pageable) {
         log.debug("REST request to get a page of Customers");
@@ -187,6 +196,15 @@ public class CustomerResource {
      * @param id the id of the customerDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the customerDTO, or with status {@code 404 (Not Found)}.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\", \"" +
+        AuthoritiesConstants.SALES +
+        "\")"
+    )
     @GetMapping("/customers/{id}")
     public ResponseEntity<CustomerDTO> getCustomer(@PathVariable Long id) {
         log.debug("REST request to get Customer : {}", id);

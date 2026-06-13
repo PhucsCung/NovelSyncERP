@@ -46,4 +46,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findOneWithToOneRelationships(@Param("id") Long id);
 
     Optional<Employee> findByUserLogin(String login);
+
+    Optional<Employee> findByUserId(Long userId);
 }

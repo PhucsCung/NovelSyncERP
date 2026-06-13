@@ -4,13 +4,12 @@ import com.mycompany.myapp.config.Constants;
 import com.mycompany.myapp.domain.Authority;
 import com.mycompany.myapp.domain.Employee;
 import com.mycompany.myapp.domain.User;
-import com.mycompany.myapp.repository.AuthorityRepository;
-import com.mycompany.myapp.repository.EmployeeRepository;
-import com.mycompany.myapp.repository.UserRepository;
+import com.mycompany.myapp.repository.*;
 import com.mycompany.myapp.security.AuthoritiesConstants;
 import com.mycompany.myapp.security.SecurityUtils;
 import com.mycompany.myapp.service.dto.AdminUserDTO;
 import com.mycompany.myapp.service.dto.UserDTO;
+import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -44,19 +43,25 @@ public class UserService {
     private final CacheManager cacheManager;
 
     private final EmployeeRepository employeeRepository;
+    private final SalesOrderRepository salesOrderRepository;
+    private final PurchaseOrderRepository purchaseOrderRepository;
 
     public UserService(
         UserRepository userRepository,
         PasswordEncoder passwordEncoder,
         AuthorityRepository authorityRepository,
         CacheManager cacheManager,
-        EmployeeRepository employeeRepository
+        EmployeeRepository employeeRepository,
+        SalesOrderRepository salesOrderRepository,
+        PurchaseOrderRepository purchaseOrderRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
         this.employeeRepository = employeeRepository;
+        this.salesOrderRepository = salesOrderRepository;
+        this.purchaseOrderRepository = purchaseOrderRepository;
     }
 
     public Optional<User> activateRegistration(String key) {
@@ -227,9 +232,40 @@ public class UserService {
     }
 
     public void deleteUser(String login) {
+        // 1. NHÁNH 1 (SƠ ĐỒ): Kiểm tra ID xóa có trùng ID đăng nhập không?
+        String currentUser = SecurityUtils.getCurrentUserLogin().orElse("");
+        if (currentUser.equalsIgnoreCase(login)) {
+            // Ném lỗi 400 về FE để hiện thông báo lỗi
+            throw new BadRequestAlertException("Không thể tự xóa tài khoản của chính mình!", "userManagement", "cannot_delete_self");
+        }
+
         userRepository
             .findOneByLogin(login)
             .ifPresent(user -> {
+                // Tìm Employee dựa trên User
+                employeeRepository
+                    .findByUserId(user.getId())
+                    .ifPresent(employee -> {
+                        // 2. NHÁNH 2 (SƠ ĐỒ): Kiểm tra tài khoản có thuộc đơn hàng nào không?
+                        // (Lưu ý: Bác sửa tên hàm existsByEmployeeId cho khớp với tên cột liên kết trong Repository đơn hàng của bác nhé)
+                        boolean hasSales = salesOrderRepository.existsByEmployeeId(employee.getId());
+                        boolean hasPurchases = purchaseOrderRepository.existsByEmployeeId(employee.getId());
+
+                        if (hasSales || hasPurchases) {
+                            // Ném lỗi 400 về FE để hiện popup: "Tài khoản thuộc đơn hàng, không cho phép xóa"
+                            throw new BadRequestAlertException(
+                                "Tài khoản đang liên kết với đơn hàng, không cho phép xóa!",
+                                "userManagement",
+                                "user_linked_to_order"
+                            );
+                        }
+
+                        // 3. NHÁNH 3: Xóa Employee TRƯỚC (để gỡ khóa ngoại Constraint)
+                        employeeRepository.delete(employee);
+                        log.debug("Deleted Employee: {}", employee.getId());
+                    });
+
+                // 4. Cuối cùng, Xóa User SAU
                 userRepository.delete(user);
                 this.clearUserCaches(user);
                 log.debug("Deleted User: {}", user);

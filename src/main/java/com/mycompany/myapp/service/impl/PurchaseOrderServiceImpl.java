@@ -507,6 +507,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             throw new BadRequestAlertException("Đơn hàng này đã được duyệt rồi!", ENTITY_NAME, "already_approved");
         }
 
+        if (order.getStatus() != OrderStatus.DRAFT) {
+            throw new BadRequestAlertException("Chỉ được duyệt đơn(DRAFT)", ENTITY_NAME, "already_approved");
+        }
         order.setStatus(OrderStatus.APPROVED);
         order = purchaseOrderRepository.save(order);
 
@@ -678,59 +681,6 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         if (isManager) {
             validatePurchaserAccess(order.getWarehouse().getId());
-        }
-
-        // ĐẢO NGƯỢC TỒN KHO (Chỉ áp dụng khi đơn đã APPROVED vì đã lỡ nhập kho)
-        if (order.getStatus() == OrderStatus.APPROVED) {
-            List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(order.getId());
-
-            if (!lines.isEmpty()) {
-                List<Long> productIds = lines.stream().map(line -> line.getProduct().getId()).collect(Collectors.toList());
-                Map<Long, InventoryBalance> balanceMap = inventoryBalanceRepository
-                    .findByWarehouseIdAndProductIdIn(order.getWarehouse().getId(), productIds)
-                    .stream()
-                    .collect(Collectors.toMap(b -> b.getProduct().getId(), b -> b));
-
-                List<InventoryTransaction> issueTransactions = new ArrayList<>();
-                Instant now = Instant.now();
-
-                for (PurchaseOrderLine line : lines) {
-                    InventoryBalance balance = balanceMap.get(line.getProduct().getId());
-                    if (balance == null || balance.getQuantity() < line.getQuantity()) {
-                        throw new BadRequestAlertException(
-                            "Tồn kho của " + line.getProduct().getName() + " hiện tại không đủ để xuất trả nhà cung cấp!",
-                            ENTITY_NAME,
-                            "insufficient_stock_to_return"
-                        );
-                    }
-
-                    // Trừ kho (Vì đang Hủy Nhập = Xuất trả)
-                    balance.setQuantity(balance.getQuantity() - line.getQuantity());
-
-                    InventoryTransaction issueTx = new InventoryTransaction();
-                    issueTx.setType(TransactionType.ISSUE);
-                    issueTx.setQuantity(line.getQuantity());
-                    issueTx.setUnitCost(line.getUnitPrice());
-                    issueTx.setReferenceId(order.getId());
-                    issueTx.setCreatedDate(now);
-                    issueTx.setProduct(line.getProduct());
-                    issueTx.setWarehouse(order.getWarehouse());
-                    issueTransactions.add(issueTx);
-                }
-
-                try {
-                    inventoryBalanceRepository.saveAll(balanceMap.values());
-                    inventoryTransactionRepository.saveAll(issueTransactions);
-                    inventoryBalanceRepository.flush();
-                    inventoryTransactionRepository.flush();
-                } catch (org.springframework.orm.ObjectOptimisticLockingFailureException e) {
-                    throw new BadRequestAlertException(
-                        "Xung đột dữ liệu tồn kho khi xuất trả hàng!",
-                        ENTITY_NAME,
-                        "optimistic_locking_inventory_conflict"
-                    );
-                }
-            }
         }
 
         // CHUYỂN TRẠNG THÁI VÀ LƯU PHIẾU

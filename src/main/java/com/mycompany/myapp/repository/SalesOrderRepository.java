@@ -128,4 +128,7 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, Long> {
         @Param("startDate") java.time.Instant startDate,
         @Param("endDate") java.time.Instant endDate
     );
+
+    boolean existsByEmployeeId(Long employeeId);
+    // (Thay chữ EmployeeId bằng đúng tên property map với Employee trong file SalesOrder.java của bác)
 }

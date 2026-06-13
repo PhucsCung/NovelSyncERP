@@ -91,4 +91,7 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Lo
         "where purchaseOrder.id = :id and u.login = :login"
     )
     Optional<PurchaseOrder> findOneByIdAndEmployeeUserLogin(@Param("id") Long id, @Param("login") String login);
+
+    boolean existsByEmployeeId(Long employeeId);
+    // (Thay chữ EmployeeId bằng đúng tên property map với Employee trong file SalesOrder.java của bác)
 }

@@ -150,6 +150,19 @@ public class ProductResource {
      * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many).
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of products in body.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.SALES +
+        "\", \"" +
+        AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\")"
+    )
     @GetMapping("/products")
     public ResponseEntity<List<ProductDTO>> getAllProducts(
         @org.springdoc.api.annotations.ParameterObject Pageable pageable,
@@ -172,6 +185,19 @@ public class ProductResource {
      * @param id the id of the productDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the productDTO, or with status {@code 404 (Not Found)}.
      */
+    @PreAuthorize(
+        "hasAnyAuthority(\"" +
+        AuthoritiesConstants.ADMIN +
+        "\", \"" +
+        AuthoritiesConstants.SALES +
+        "\", \"" +
+        AuthoritiesConstants.PURCHASER +
+        "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
+        "\", \"" +
+        AuthoritiesConstants.MANAGER +
+        "\")"
+    )
     @GetMapping("/products/{id}")
     public ResponseEntity<ProductDTO> getProduct(@PathVariable Long id) {
         log.debug("REST request to get Product : {}", id);

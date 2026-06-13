@@ -184,6 +184,8 @@ public class SalesOrderResource {
         "\", \"" +
         AuthoritiesConstants.SALES +
         "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
+        "\", \"" +
         AuthoritiesConstants.ACCOUNTANT +
         "\")"
     )
@@ -219,6 +221,8 @@ public class SalesOrderResource {
         AuthoritiesConstants.SHIPPER +
         "\", \"" +
         AuthoritiesConstants.SALES +
+        "\", \"" +
+        AuthoritiesConstants.WAREHOUSE +
         "\", \"" +
         AuthoritiesConstants.ACCOUNTANT +
         "\")"

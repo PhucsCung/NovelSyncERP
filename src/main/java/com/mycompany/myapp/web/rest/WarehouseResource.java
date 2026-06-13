@@ -149,6 +149,7 @@ public class WarehouseResource {
      * @param pageable the pagination information.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and the list of warehouses in body.
      */
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.MANAGER + "\")")
     @GetMapping("/warehouses")
     public ResponseEntity<List<WarehouseDTO>> getAllWarehouses(@org.springdoc.api.annotations.ParameterObject Pageable pageable) {
         log.debug("REST request to get a page of Warehouses");
@@ -163,6 +164,7 @@ public class WarehouseResource {
      * @param id the id of the warehouseDTO to retrieve.
      * @return the {@link ResponseEntity} with status {@code 200 (OK)} and with body the warehouseDTO, or with status {@code 404 (Not Found)}.
      */
+    @PreAuthorize("hasAnyAuthority(\"" + AuthoritiesConstants.ADMIN + "\", \"" + AuthoritiesConstants.MANAGER + "\")")
     @GetMapping("/warehouses/{id}")
     public ResponseEntity<WarehouseDTO> getWarehouse(@PathVariable Long id) {
         log.debug("REST request to get Warehouse : {}", id);
