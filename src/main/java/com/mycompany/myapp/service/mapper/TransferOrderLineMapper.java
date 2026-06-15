@@ -20,6 +20,7 @@ public interface TransferOrderLineMapper extends EntityMapper<TransferOrderLineD
     @Named("productName")
     @BeanMapping(ignoreByDefault = true)
     @Mapping(target = "id", source = "id")
+    @Mapping(target = "sku", source = "sku")
     @Mapping(target = "name", source = "name")
     ProductDTO toDtoProductName(Product product);
 

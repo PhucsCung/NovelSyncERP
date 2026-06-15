@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 import javax.validation.constraints.*;
-
+import com.mycompany.myapp.domain.enumeration.PaymentStatus;
 /**
  * A DTO for the {@link com.mycompany.myapp.domain.Payment} entity.
  */
@@ -20,6 +20,9 @@ public class PaymentDTO implements Serializable {
 
     @NotNull
     private PaymentType type;
+
+    @NotNull
+    private PaymentStatus status;
 
     @NotNull
     private BigDecimal amount;
@@ -55,6 +58,14 @@ public class PaymentDTO implements Serializable {
 
     public void setType(PaymentType type) {
         this.type = type;
+    }
+
+    public PaymentStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PaymentStatus status) {
+        this.status = status;
     }
 
     public BigDecimal getAmount() {
@@ -125,6 +136,7 @@ public class PaymentDTO implements Serializable {
             "id=" + getId() +
             ", paymentCode='" + getPaymentCode() + "'" +
             ", type='" + getType() + "'" +
+            ", status='" + getStatus() + "'" +
             ", amount=" + getAmount() +
             ", referenceOrderId=" + getReferenceOrderId() +
             ", createdAt='" + getCreatedAt() + "'" +

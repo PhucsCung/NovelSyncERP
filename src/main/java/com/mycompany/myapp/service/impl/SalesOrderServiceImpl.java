@@ -49,7 +49,8 @@ public class SalesOrderServiceImpl implements SalesOrderService {
     private final CustomerRepository customerRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EmployeeRepository employeeRepository;
-    private final ProductRepository productRepository; // ĐÃ THÊM
+    private final ProductRepository productRepository;
+    private final WarehouseRepository warehouseRepository;
 
     public SalesOrderServiceImpl(
         SalesOrderRepository salesOrderRepository,
@@ -61,7 +62,8 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         CustomerRepository customerRepository,
         ApplicationEventPublisher eventPublisher,
         EmployeeRepository employeeRepository,
-        ProductRepository productRepository // ĐÃ THÊM
+        ProductRepository productRepository,
+        WarehouseRepository warehouseRepository
     ) {
         this.salesOrderRepository = salesOrderRepository;
         this.salesOrderMapper = salesOrderMapper;
@@ -73,6 +75,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         this.eventPublisher = eventPublisher;
         this.employeeRepository = employeeRepository;
         this.productRepository = productRepository;
+        this.warehouseRepository = warehouseRepository;
     }
 
     private Employee validateSalesAccess(Long warehouseId) {
@@ -205,13 +208,23 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         }
         salesOrderDTO.setTotalAmount(calculatedTotal);
 
+        Customer customer = customerRepository
+            .findById(salesOrderDTO.getCustomer().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Customer not found", ENTITY_NAME, "customer_not_found"));
+        Warehouse warehouse = warehouseRepository
+            .findById(salesOrderDTO.getWarehouse().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Warehouse not found", ENTITY_NAME, "warehouse_not_found"));
+
         SalesOrder salesOrder = salesOrderMapper.toEntity(salesOrderDTO);
+        salesOrder.setCustomer(customer);
+        salesOrder.setWarehouse(warehouse);
         salesOrder.setEmployee(currentEmployee);
         salesOrder = salesOrderRepository.save(salesOrder);
 
         List<SalesOrderLine> linesToSave = new ArrayList<>();
         for (SalesOrderLineDTO lineDTO : salesOrderDTO.getSalesOrderLines()) {
             SalesOrderLine line = salesOrderLineMapper.toEntity(lineDTO);
+            line.setProduct(productMap.get(lineDTO.getProduct().getId()));
             line.setSalesOrder(salesOrder);
             linesToSave.add(line);
         }
@@ -292,7 +305,16 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         }
         salesOrderDTO.setTotalAmount(calculatedTotal);
 
+        Customer customer = customerRepository
+            .findById(salesOrderDTO.getCustomer().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Customer not found", ENTITY_NAME, "customer_not_found"));
+        Warehouse warehouse = warehouseRepository
+            .findById(salesOrderDTO.getWarehouse().getId())
+            .orElseThrow(() -> new BadRequestAlertException("Warehouse not found", ENTITY_NAME, "warehouse_not_found"));
+
         SalesOrder salesOrder = salesOrderMapper.toEntity(salesOrderDTO);
+        salesOrder.setCustomer(customer);
+        salesOrder.setWarehouse(warehouse);
         salesOrder.setEmployee(oldOrder.getEmployee());
         salesOrder = salesOrderRepository.save(salesOrder);
 
@@ -302,6 +324,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         List<SalesOrderLine> newLines = new ArrayList<>();
         for (SalesOrderLineDTO lineDTO : salesOrderDTO.getSalesOrderLines()) {
             SalesOrderLine line = salesOrderLineMapper.toEntity(lineDTO);
+            line.setProduct(productMap.get(lineDTO.getProduct().getId()));
             line.setSalesOrder(salesOrder);
             newLines.add(line);
         }
@@ -392,6 +415,10 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                     List<SalesOrderLine> newLines = new ArrayList<>();
                     for (SalesOrderLineDTO lineDTO : salesOrderDTO.getSalesOrderLines()) {
                         SalesOrderLine line = salesOrderLineMapper.toEntity(lineDTO);
+                        Product product = productRepository
+                            .findById(lineDTO.getProduct().getId())
+                            .orElseThrow(() -> new BadRequestAlertException("Product not found", ENTITY_NAME, "product_not_found"));
+                        line.setProduct(product);
                         line.setSalesOrder(savedOrder);
                         newLines.add(line);
                     }
