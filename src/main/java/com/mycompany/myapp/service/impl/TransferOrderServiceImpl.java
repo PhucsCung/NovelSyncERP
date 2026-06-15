@@ -335,9 +335,19 @@ public class TransferOrderServiceImpl implements TransferOrderService {
             throw new BadRequestAlertException("Chỉ được xóa phiếu điều chuyển NHÁP!", ENTITY_NAME, "cannot_delete_processed_order");
         }
 
+        // 👇 Lưu vết mã đơn và người tạo
+        String transferCode = order.getTransferCode();
+        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null ? order.getEmployee().getUser().getLogin() : "System";
+
         List<TransferOrderLine> lines = transferOrderLineRepository.findByTransferOrderId(id);
         transferOrderLineRepository.deleteAll(lines);
         transferOrderRepository.deleteById(id);
+
+        // 👇 Bắn sự kiện DELETED
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("TRANSFER", "DELETED", id, transferCode, currentLogin, creatorLogin)
+        );
     }
 
     @Transactional
@@ -349,6 +359,12 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         processOutboundTransfer(order, false); // CHỈ TRỪ KHO A
         order.setStatus(OrderStatus.APPROVED);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        String creatorLogin = order.getEmployee().getUser().getLogin();
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("TRANSFER", "APPROVED", order.getId(), order.getTransferCode(), currentLogin, creatorLogin)
+        );
         return transferOrderMapper.toDto(transferOrderRepository.save(order));
     }
 
@@ -367,8 +383,18 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         if (order.getStatus() == OrderStatus.APPROVED || order.getStatus() == OrderStatus.PROCESSING) {
             processOutboundTransfer(order, true);
         }
+
         order.setStatus(OrderStatus.CANCELLED);
-        return transferOrderMapper.toDto(transferOrderRepository.save(order));
+        order = transferOrderRepository.save(order); // Lưu db trước
+
+        // 👇 VÁ LỖI: Bắn sự kiện CANCELLED cho Listener xử lý
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        String creatorLogin = order.getEmployee().getUser().getLogin();
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("TRANSFER", "CANCELLED", order.getId(), order.getTransferCode(), currentLogin, creatorLogin)
+        );
+
+        return transferOrderMapper.toDto(order);
     }
 
     @Transactional
@@ -382,6 +408,12 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         );
 
         order.setStatus(OrderStatus.PROCESSING);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        String creatorLogin = order.getEmployee().getUser().getLogin();
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("TRANSFER", "PROCESSING", order.getId(), order.getTransferCode(), currentLogin, creatorLogin)
+        );
         return transferOrderMapper.toDto(transferOrderRepository.save(order));
     }
 
@@ -396,15 +428,11 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         );
 
         // Đánh tiếng cho Kho B ra nhận hàng
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        String creatorLogin = order.getEmployee().getUser().getLogin();
+
         eventPublisher.publishEvent(
-            new OrderNotificationEvent(
-                "TRANSFER",
-                "ARRIVED",
-                order.getId(),
-                "Xe hàng điều chuyển " + order.getTransferCode() + " đã tới. Kho B kiểm đếm và nhận hàng!",
-                "System",
-                "WAREHOUSE_GROUP"
-            )
+            new OrderNotificationEvent("TRANSFER", "ARRIVED", order.getId(), order.getTransferCode(), currentLogin, creatorLogin)
         );
         return transferOrderMapper.toDto(order);
     }
@@ -423,6 +451,12 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         processInboundTransfer(order); // CỘNG KHO B
         order.setStatus(OrderStatus.COMPLETED);
+
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        String creatorLogin = order.getEmployee().getUser().getLogin();
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("TRANSFER", "COMPLETED", order.getId(), order.getTransferCode(), currentLogin, creatorLogin)
+        );
         return transferOrderMapper.toDto(transferOrderRepository.save(order));
     }
 

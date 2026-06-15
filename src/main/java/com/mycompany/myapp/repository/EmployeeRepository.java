@@ -48,4 +48,56 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findByUserLogin(String login);
 
     Optional<Employee> findByUserId(Long userId);
+
+    //QUERY NÀY ĐỂ TÌM QUẢN LÝ CÙNG CHI NHÁNH & PHÒNG BAN
+    @Query("SELECT e FROM Employee e JOIN e.user u JOIN u.authorities a " +
+        "WHERE e.scopedWarehouse.id = :warehouseId " +
+        "AND e.department.id = :departmentId " +
+        "AND a.name = :authority " +
+        "AND e.isActive = true")
+    List<Employee> findManagersByBranchAndDepartment(
+        @Param("warehouseId") Long warehouseId,
+        @Param("departmentId") Long departmentId,
+        @Param("authority") String authority
+    );
+
+    //QUERY NÀY ĐỂ TÌM TOÀN BỘ SHIPPER CỦA CHI NHÁNH
+    @Query("SELECT e FROM Employee e JOIN e.user u JOIN u.authorities a " +
+        "WHERE e.scopedWarehouse.id = :warehouseId " +
+        "AND a.name = :authority " +
+        "AND e.isActive = true")
+    List<Employee> findShippersByBranch(
+        @Param("warehouseId") Long warehouseId,
+        @Param("authority") String authority
+    );
+
+    // QUERY NÀY: Lấy tất cả Kế toán toàn hệ thống (Không lọc theo chi nhánh)
+    @Query("SELECT e FROM Employee e JOIN e.user u JOIN u.authorities a " +
+        "WHERE a.name = :authority AND e.isActive = true")
+    List<Employee> findAllAccountants(@Param("authority") String authority);
+
+    // QUERY NÀY: Lấy tất cả ADMIN toàn hệ thống
+    @Query("SELECT e FROM Employee e JOIN e.user u JOIN u.authorities a " +
+        "WHERE a.name = :authority AND e.isActive = true")
+    List<Employee> findAllAdmins(@Param("authority") String authority);
+
+    // QUERY NÀY: Tìm toàn bộ nhân viên Kho của một chi nhánh
+    @Query("SELECT e FROM Employee e JOIN e.user u JOIN u.authorities a " +
+        "WHERE e.scopedWarehouse.id = :warehouseId " +
+        "AND a.name = :authority " +
+        "AND e.isActive = true")
+    List<Employee> findWarehouseStaffByBranch(
+        @Param("warehouseId") Long warehouseId,
+        @Param("authority") String authority
+    );
+
+    // QUERY NÀY: Tìm Quản lý phòng Mua hàng của một chi nhánh cụ thể
+    @Query("SELECT e FROM Employee e JOIN e.user u JOIN u.authorities a " +
+        "WHERE e.scopedWarehouse.id = :warehouseId " +
+        "AND e.department.name = 'PURCHASE' " +
+        "AND a.name = :authority AND e.isActive = true")
+    List<Employee> findPurchaseManagersByBranch(
+        @Param("warehouseId") Long warehouseId,
+        @Param("authority") String authority
+    );
 }

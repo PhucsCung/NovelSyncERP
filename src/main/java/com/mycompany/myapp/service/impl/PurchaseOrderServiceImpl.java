@@ -489,9 +489,19 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
             );
         }
 
+        // 👇 Lưu vết mã đơn và người tạo
+        String poCode = order.getPoCode();
+        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null ? order.getEmployee().getUser().getLogin() : "System";
+
         List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(id);
         purchaseOrderLineRepository.deleteAll(lines);
         purchaseOrderRepository.deleteById(id);
+
+        // 👇 Bắn sự kiện DELETED
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("PURCHASE", "DELETED", id, poCode, currentLogin, creatorLogin)
+        );
     }
 
     @Transactional
@@ -716,13 +726,14 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         order.setStatus(OrderStatus.PROCESSING); // Hàng đang trên xe
         order = purchaseOrderRepository.save(order);
 
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         eventPublisher.publishEvent(
             new OrderNotificationEvent(
                 "PURCHASE",
                 "PROCESSING",
                 order.getId(),
-                "Shipper đang chở hàng về kho",
-                "System",
+                order.getPoCode(), // VÁ LỖI
+                currentLogin,      // VÁ LỖI
                 order.getEmployee().getUser().getLogin()
             )
         );
@@ -740,14 +751,15 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
 
         // Bắn Noti gọi Thủ kho ra nhận hàng, Kế toán chuẩn bị chốt tiền
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         eventPublisher.publishEvent(
             new OrderNotificationEvent(
                 "PURCHASE",
                 "ARRIVED",
                 order.getId(),
-                "Xe hàng " + order.getPoCode() + " đã về tới. Thủ kho ra nhận hàng!",
-                "System",
-                "WAREHOUSE_GROUP"
+                order.getPoCode(), // VÁ LỖI
+                currentLogin,      // VÁ LỖI
+                order.getEmployee().getUser().getLogin() // VÁ LỖI: Truyền lại đúng originalCreator thay vì "WAREHOUSE_GROUP"
             )
         );
         return purchaseOrderMapper.toDto(order);

@@ -469,9 +469,19 @@ public class SalesOrderServiceImpl implements SalesOrderService {
             throw new BadRequestAlertException("Đại kỵ! Chỉ được xóa đơn hàng ở trạng thái NHÁP!", ENTITY_NAME, "cannot_delete");
         }
 
+        // 👇 Lưu vết mã đơn và người tạo TRƯỚC KHI XÓA
+        String orderCode = order.getOrderCode();
+        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null ? order.getEmployee().getUser().getLogin() : "System";
+
         List<SalesOrderLine> lines = salesOrderLineRepository.findBySalesOrderId(id);
         salesOrderLineRepository.deleteAll(lines);
         salesOrderRepository.deleteById(id);
+
+        // 👇 Bắn sự kiện DELETED báo cho quản lý
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+        eventPublisher.publishEvent(
+            new OrderNotificationEvent("SALES", "DELETED", id, orderCode, currentLogin, creatorLogin)
+        );
     }
 
     @Transactional
@@ -516,6 +526,23 @@ public class SalesOrderServiceImpl implements SalesOrderService {
 
             // Trừ số lượng tồn kho trực tiếp trên RAM
             balance.setQuantity(balance.getQuantity() - line.getQuantity());
+
+            //Cảnh báo chạm đáy tồn kho (Ngưỡng = 10)
+            if (balance.getQuantity() <= 10) {
+                String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
+
+                // Mượn OrderNotificationEvent để bắn cảnh báo
+                eventPublisher.publishEvent(
+                    new OrderNotificationEvent(
+                        "INVENTORY", // Type: Đánh dấu đây là event của Tồn kho
+                        "LOW_STOCK", // Action: Chạm đáy
+                        line.getProduct().getId(), // Truyền ID sản phẩm
+                        line.getProduct().getName() + " (Chỉ còn " + balance.getQuantity() + " sản phẩm)", // Tên SP + Số lượng
+                        currentLogin,
+                        String.valueOf(order.getWarehouse().getId()) // Mượn field này để nhét ID Kho vào truyền đi
+                    )
+                );
+            }
 
             // Ghi nhận lịch sử: THẺ KHO XUẤT HÀNG (ISSUE)
             InventoryTransaction transaction = new InventoryTransaction();
@@ -719,13 +746,14 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         order.setStatus(OrderStatus.PROCESSING); // Hàng đang trên đường đi giao
         order = salesOrderRepository.save(order);
 
+        String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
         eventPublisher.publishEvent(
             new OrderNotificationEvent(
                 "SALES",
                 "PROCESSING",
                 order.getId(),
-                "Shipper đang giao hàng tới khách",
-                "System",
+                order.getOrderCode(), // VÁ LỖI: Trả về đúng mã đơn
+                currentLogin,         // VÁ LỖI: Lấy user hiện tại thay vì "System"
                 order.getEmployee().getUser().getLogin()
             )
         );
@@ -750,9 +778,9 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 "SALES",
                 "DELIVERED_WAITING_PAYMENT",
                 order.getId(),
-                "Đơn " + order.getOrderCode() + " đã giao xong. Kế toán kiểm tra dòng tiền để chốt sổ!",
-                currentLogin,
-                "ACCOUNTANT_GROUP"
+                order.getOrderCode(), // VÁ LỖI
+                currentLogin,         // VÁ LỖI
+                order.getEmployee().getUser().getLogin() // VÁ LỖI: Truyền lại đúng originalCreator thay vì "ACCOUNTANT_GROUP"
             )
         );
 
