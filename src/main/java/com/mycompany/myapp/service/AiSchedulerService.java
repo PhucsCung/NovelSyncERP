@@ -32,6 +32,7 @@ public class AiSchedulerService {
     private final RestTemplate restTemplate;
     private final WarehouseMapper warehouseMapper;
     private final InventoryBalanceRepository inventoryBalanceRepository;
+    private final SupplierRepository supplierRepository;
 
     public AiSchedulerService(
         ProductRepository productRepository,
@@ -40,7 +41,8 @@ public class AiSchedulerService {
         PurchaseOrderService purchaseOrderService,
         RestTemplate restTemplate,
         WarehouseMapper warehouseMapper,
-        InventoryBalanceRepository inventoryBalanceRepository
+        InventoryBalanceRepository inventoryBalanceRepository,
+        SupplierRepository supplierRepository
     ) {
         this.productRepository = productRepository;
         this.warehouseRepository = warehouseRepository;
@@ -49,6 +51,7 @@ public class AiSchedulerService {
         this.restTemplate = restTemplate;
         this.warehouseMapper = warehouseMapper;
         this.inventoryBalanceRepository = inventoryBalanceRepository;
+        this.supplierRepository = supplierRepository;
     }
 
     /**
@@ -63,10 +66,19 @@ public class AiSchedulerService {
 
         String pythonAiUrl = "http://localhost:8000/predict";
 
+        // Fetch a default supplier for AI orders
+        Supplier defaultSupplier = supplierRepository.findAll().stream().findFirst().orElse(null);
+
         for (Warehouse warehouse : warehouses) {
             PurchaseOrderDTO draftPo = new PurchaseOrderDTO();
             draftPo.setWarehouse(warehouseMapper.toDto(warehouse));
+            if (defaultSupplier != null) {
+                SupplierDTO sDto = new SupplierDTO();
+                sDto.setId(defaultSupplier.getId());
+                draftPo.setSupplier(sDto);
+            }
             List<PurchaseOrderLineDTO> poLines = new ArrayList<>();
+            BigDecimal totalAmount = BigDecimal.ZERO;
 
             for (Product product : products) {
                 List<SalesOrderLine> historyLines = salesOrderLineRepository.findCompletedSalesHistory(product.getId(), warehouse.getId());
@@ -103,8 +115,12 @@ public class AiSchedulerService {
 
                         // LẤY GIÁ NHẬP (PURCHASE PRICE) ĐỂ ĐIỀN VÀO ĐƠN MUA HÀNG
                         poLine.setUnitPrice(product.getPurchasePrice());
+                        ProductDTO pDto = new ProductDTO();
+                        pDto.setId(product.getId());
+                        poLine.setProduct(pDto);
 
                         poLines.add(poLine);
+                        totalAmount = totalAmount.add(poLine.getUnitPrice().multiply(new BigDecimal(poLine.getQuantity())));
                     }
                 } catch (Exception e) {
                     log.error("Lỗi khi gọi API AI Python cho sản phẩm ID {}: {}", product.getId(), e.getMessage());
@@ -113,6 +129,7 @@ public class AiSchedulerService {
 
             if (!poLines.isEmpty()) {
                 draftPo.setPurchaseOrderLines(poLines);
+                draftPo.setTotalAmount(totalAmount);
                 purchaseOrderService.save(draftPo);
                 log.info("ĐÃ TỰ ĐỘNG TẠO ĐƠN NHẬP HÀNG NHÁP CHO KHO: {}", warehouse.getName());
             }
