@@ -58,6 +58,9 @@
             <column name="id" type="numeric"/>
             <column name="full_name" type="string"/>
             <column name="phone" type="string"/>
+            <column name="user_id" type="numeric"/>
+            <column name="scoped_warehouse_id" type="numeric"/>
+            <column name="department_id" type="numeric"/>
             <column name="is_active" type="boolean"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>

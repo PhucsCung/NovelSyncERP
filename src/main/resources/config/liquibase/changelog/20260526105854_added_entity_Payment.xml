@@ -72,9 +72,11 @@
             <column name="status" type="string"/>
             <column name="note" type="string"/>
             <column name="created_by" type="string"/>
-            <column name="created_date" type="date"/>
+            <column name="created_date" type="timestamp"/>
             <column name="last_modified_by" type="string"/>
-            <column name="last_modified_date" type="date"/>
+            <column name="last_modified_date" type="timestamp"/>
+            <column name="customer_id" type="numeric"/>
+            <column name="supplier_id" type="numeric"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>

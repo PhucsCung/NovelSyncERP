@@ -49,6 +49,8 @@
             <column name="id" type="numeric"/>
             <column name="quantity" type="numeric"/>
             <column name="unit_price" type="numeric"/>
+            <column name="product_id" type="numeric"/>
+            <column name="purchase_order_id" type="numeric"/>
             <!-- jhipster-needle-liquibase-add-loadcolumn - JHipster (and/or extensions) can add load columns here -->
         </loadData>
     </changeSet>
