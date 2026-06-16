@@ -1,11 +1,6 @@
 id;code;name;phone;credit_limit;current_debt;is_active;address
-1;Assistant;Market;721-764-2911 x28337;39786;29113;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-2;auxiliary experiences;Sahara;1-637-708-5845 x122;27422;41861;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-3;Pa'anga azure online;JBOD;(368) 430-6700;58203;8588;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-4;Spurs Specialist;Front-line;860.872.4207 x005;70355;16931;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-5;plum synthesize Lilangeni;Chair Directives;786.901.6845;87756;56359;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-6;connect Omani;Rustic Re-engineered;(815) 354-5151;85925;24272;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-7;ivory deposit Horizontal;Loan Handcrafted Architect;915.820.1449;31581;7299;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-8;matrix;Via;829-641-2680 x61852;45915;20188;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-9;transitional intuitive black;Clothing;(960) 819-4768;82469;1967;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
-10;Future Stand-alone;Ramp Cambridgeshire;(761) 875-4964 x49902;87970;13659;true;Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội
+1;CUS001;Đại lý Thế Giới Số;0912345001;100000000;15000000;true;123 Lê Lợi, HN
+2;CUS002;Đại lý TechZone;0912345002;50000000;5000000;true;456 Nguyễn Huệ, HCM
+3;CUS003;Cửa hàng Máy Tính Ánh Sáng;0912345003;50000000;0;true;789 Hùng Vương, ĐN
+4;CUS004;Khách hàng lẻ Nguyễn Trãi;0912345004;10000000;0;true;Quận 5, HCM
+5;CUS005;Công ty CP Tầm Nhìn Mới;0912345005;100000000;30000000;true;Cầu Giấy, HN

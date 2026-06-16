@@ -1,11 +1,4 @@
-id;title;message;is_read;type;reference_id;created_at
-1;Rustic Throughway;1080p;true;SYSTEM;85879;2026-05-25T20:23:25
-2;CSS Shores;next-generation vertical Rubber;true;INVENTORY_ALERT;17246;2026-05-25T22:49:13
-3;bluetooth Yen;Sports invoice;false;ORDER_APPROVAL;25250;2026-05-25T15:04:40
-4;Strategist;stable Intelligent;false;INVENTORY_ALERT;64519;2026-05-26T04:35:58
-5;generation Fresh payment;Terrace;true;ORDER_APPROVAL;66502;2026-05-26T13:49:33
-6;Berkshire AGP;multi-byte Specialist;true;INVENTORY_ALERT;51492;2026-05-26T03:41:42
-7;Bacon Chair workforce;system;false;INVENTORY_ALERT;99361;2026-05-26T07:57:51
-8;Kenya Table;Checking Jamahiriya;false;INVENTORY_ALERT;15501;2026-05-26T04:29:41
-9;payment;Investor Global architectures;false;INVENTORY_ALERT;90215;2026-05-25T18:55:21
-10;circuit Home;program Mexican;false;SYSTEM;5277;2026-05-26T00:51:28
+id;title;message;is_read;type;reference_id;created_at;recipient_id
+1;Đơn hàng mới chờ duyệt;Đơn hàng SO-20260601-0036 đã được tạo và chờ phòng kế toán duyệt dòng tiền.;false;ORDER_CREATED;36;2026-06-01 09:35:00;2
+2;Cảnh báo tồn kho thấp;Sản phẩm iPhone 15 Pro Max tại Kho Chi Nhánh HCM đã xuống dưới hạn mức tối thiểu.;false;INVENTORY_LOW;1;2026-06-10 08:00:00;8
+3;Xác nhận thanh toán;Hệ thống đã nhận được khoản thanh toán 162,500,000 VND từ Đại lý Thế Giới Số.;true;PAYMENT_RECEIVED;6;2024-11-11 08:15:00;2

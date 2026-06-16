@@ -1,11 +1,8 @@
-id;payment_code;type;amount;reference_order_id;status;note;created_by;created_date;last_modified_by;last_modified_date
-1;Soap killer;RECEIPT;79884;53272;COMPLETED;;admin;2026-05-26T03:33:33;admin;2026-05-26T03:33:33
-2;Checking;RECEIPT;13119;10361;COMPLETED;;admin;2026-05-26T00:19:57;admin;2026-05-26T00:19:57
-3;wireless Buckinghamshire;DISBURSEMENT;3313;37612;COMPLETED;;admin;2026-05-26T00:23:15;admin;2026-05-26T00:23:15
-4;Skyway;DISBURSEMENT;11298;16630;COMPLETED;;admin;2026-05-25T17:43:04;admin;2026-05-25T17:43:04
-5;Infrastructure Accountability tan;RECEIPT;67238;13397;COMPLETED;;admin;2026-05-26T07:18:39;admin;2026-05-26T07:18:39
-6;Wooden;RECEIPT;50235;248;COMPLETED;;admin;2026-05-25T19:17:03;admin;2026-05-25T19:17:03
-7;bandwidth empower Pre-emptive;DISBURSEMENT;78229;38933;COMPLETED;;admin;2026-05-26T05:12:58;admin;2026-05-26T05:12:58
-8;bandwidth Secured;RECEIPT;46136;39371;COMPLETED;;admin;2026-05-25T23:03:55;admin;2026-05-25T23:03:55
-9;Accountability;DISBURSEMENT;84787;26655;COMPLETED;;admin;2026-05-26T04:43:00;admin;2026-05-26T04:43:00
-10;Creative;RECEIPT;15000;12345;PENDING;;admin;2026-05-26T05:00:00;admin;2026-05-26T05:00:00
+id;payment_code;type;amount;reference_order_id;customer_id;supplier_id;status;note;created_by;created_date;last_modified_by;last_modified_date
+1;PAY-IN-SO-20240115-0001;IN;32500000.00;1;1;;COMPLETED;Khách hàng thanh toán đơn hàng;admin;2024-01-15 14:25:00;admin;2024-01-15 14:25:00
+2;PAY-IN-SO-20240214-0002;IN;5850000.00;2;2;;COMPLETED;Khách hàng chuyển khoản Techcombank;admin;2024-02-14 16:05:00;admin;2024-02-14 16:05:00
+3;PAY-IN-SO-20240320-0003;IN;195000.00;3;3;;COMPLETED;Thanh toán tiền mặt tại quầy;admin;2024-03-20 11:35:00;admin;2024-03-20 11:35:00
+4;PAY-OUT-PO-20240301-0001;OUT;2250000000.00;1;;1;COMPLETED;Chi tiền nhập hàng đợt 1 cho Apple VN;admin;2024-03-02 11:15:00;admin;2024-03-02 11:15:00
+5;PAY-OUT-PO-20240915-0002;OUT;3750000000.00;2;;2;COMPLETED;Chuyển khoản thanh toán Digiworld;admin;2024-09-16 15:10:00;admin;2024-09-16 15:10:00
+6;PAY-IN-SO-20241111-0011;IN;162500000.00;11;1;;COMPLETED;Thu tiền đại lý đơn hàng ngày lễ;admin;2024-11-11 08:10:00;admin;2024-11-11 08:10:00
+7;PAY-IN-SO-20241212-0013;IN;227500000.00;13;3;;COMPLETED;Khách đối soát công nợ cuối tháng;admin;2024-12-12 10:15:00;admin;2024-12-12 10:15:00

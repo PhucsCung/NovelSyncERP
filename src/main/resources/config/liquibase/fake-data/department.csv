@@ -1,11 +1,6 @@
 id;code;name;is_active
-1;Virtual;SALES;true
-2;global groupware;SALES;true
-3;Chicken;SALES;true
-4;navigating Hat Savings;SALES;true
-5;Borders;SALES;true
-6;Slovakia;PURCHASE;true
-7;Granite Concrete Unbranded;PURCHASE;true
-8;Principal;WAREHOUSE;true
-9;withdrawal;WAREHOUSE;true
-10;Cotton 1080p Steel;ACCOUNTING;true
+1;DEP001;Phòng Bán Hàng (Sales);true
+2;DEP002;Phòng Mua Hàng (Purchasing);true
+3;DEP003;Phòng Kho Bãi (Warehouse);true
+4;DEP004;Phòng Kế Toán (Accounting);true
+5;DEP005;Phòng Nhân Sự (HR);true

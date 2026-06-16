@@ -1,11 +1,9 @@
 id;code;name;is_active
-1;Table;open-source;true
-2;Integration;Refined metrics e-commerce;true
-3;Chief;XML Chips Kentucky;true
-4;Steel transmitting Nevada;harness Georgia Hat;true
-5;Program mesh;Designer array;true
-6;Verde;Loan Music;true
-7;Bedfordshire Investor;Front-line plug-and-play Versatile;true
-8;Rustic Handcrafted JSON;Loan connecting systems;true
-9;networks;Avon XML;true
-10;invoice Sleek azure;feed Kids;true
+1;CAT001;Điện thoại;true
+2;CAT002;Laptop;true
+3;CAT003;Phụ kiện;true
+4;CAT004;Gia dụng thông minh;true
+5;CAT005;Thiết bị Âm thanh;true
+6;CAT006;Màn hình;true
+7;CAT007;Máy tính bảng;true
+8;CAT008;Smartwatch;true

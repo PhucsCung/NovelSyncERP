@@ -1,11 +1,8 @@
-id;po_code;total_amount;status;created_by;created_date;last_modified_by;last_modified_date
-1;invoice;92856;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-2;Directives reciprocal Soft;56048;CANCELLED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-3;deposit;56543;APPROVED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-4;Agent scale HDD;40249;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-5;International bypassing Guadeloupe;572;PROCESSING;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-6;Bike systems back;89206;APPROVED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-7;Identity tan;90276;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-8;tangible invoice;87815;CANCELLED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-9;bandwidth-monitored Direct;40755;CANCELLED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
-10;synthesizing Berkshire;74007;COMPLETED;system;2026-05-26 00:00:00;system;2026-05-26 00:00:00
+id;po_code;total_amount;status;supplier_id;employee_id;warehouse_id;created_by;created_date;last_modified_by;last_modified_date
+1;PO-20240301-0001;2250000000.00;COMPLETED;1;4;1;admin;2024-03-01 09:00:00;admin;2024-03-02 11:00:00
+2;PO-20240915-0002;3750000000.00;COMPLETED;2;4;1;admin;2024-09-15 10:30:00;admin;2024-09-16 15:00:00
+3;PO-20241020-0003;1100000000.00;COMPLETED;3;4;2;admin;2024-10-20 14:00:00;admin;2024-10-21 16:30:00
+4;PO-20250310-0004;2500000000.00;COMPLETED;1;4;3;admin;2025-03-10 08:45:00;admin;2025-03-11 10:00:00
+5;PO-20250920-0005;4400000000.00;COMPLETED;2;4;1;admin;2025-09-20 11:15:00;admin;2025-09-21 14:00:00
+6;PO-20260305-0006;1250000000.00;PROCESSING;3;4;1;admin;2026-03-05 09:00:00;admin;2026-03-05 09:00:00
+7;PO-20260520-0007;0.00;CANCELLED;1;4;2;admin;2026-05-20 13:00:00;admin;2026-05-20 14:30:00

@@ -1,11 +1,11 @@
 id;sku;name;purchase_price;selling_price;attributes;is_active;category_id
-1;Steel;Assistant;57374;1000000;{};true;1
-2;monetize Consultant wireless;Handmade;76808;1000000;{};true;1
-3;deposit Track actuating;Unbranded Soap;63081;1000000;{};true;1
-4;navigating Michigan;Infrastructure;91058;1000000;{};true;1
-5;compressing withdrawal green;Bedfordshire Lao neutral;4184;1000000;{};true;1
-6;Business-focused;Rubber;95238;1000000;{};true;1
-7;orange Practical;Identity Dynamic Sports;86396;1000000;{};true;1
-8;Personal Steel;solutions;27331;1000000;{};true;1
-9;withdrawal invoice;Bike Shoes Center;20319;1000000;{};true;1
-10;SMS;methodical;83666;1000000;{};true;1
+1;SKU00001;iPhone 15 Pro Max;25000000;32500000;{"color": "Đen Titanium", "weight": "240g"};true;1
+2;SKU00002;MacBook Pro M3;35000000;45500000;{"color": "Bạc", "weight": "1.6kg"};true;2
+3;SKU00003;AirPods Pro 2;4500000;5850000;{"color": "Trắng", "weight": "50g"};true;5
+4;SKU00004;Samsung Galaxy S24 Ultra;22000000;28600000;{"color": "Xanh", "weight": "232g"};true;1
+5;SKU00005;Dell XPS 15;30000000;39000000;{"color": "Bạc", "weight": "1.8kg"};true;2
+6;SKU00006;Cáp sạc Type-C 20W;150000;195000;{"color": "Trắng", "weight": "30g"};true;3
+7;SKU00007;Robot hút bụi Xiaomi;5000000;6500000;{"color": "Đen", "weight": "3kg"};true;4
+8;SKU00008;Loa Marshall Stanmore;6000000;7800000;{"color": "Đen", "weight": "4.2kg"};true;5
+9;SKU00009;Màn hình LG UltraGear 27 inch;7000000;9100000;{"color": "Đen", "weight": "6kg"};true;6
+10;SKU00010;iPad Pro M4;28000000;36400000;{"color": "Đen", "weight": "440g"};true;7
