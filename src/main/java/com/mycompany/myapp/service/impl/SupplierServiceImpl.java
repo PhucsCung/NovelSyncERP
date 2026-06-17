@@ -5,6 +5,7 @@ import com.mycompany.myapp.repository.SupplierRepository;
 import com.mycompany.myapp.service.SupplierService;
 import com.mycompany.myapp.service.dto.SupplierDTO;
 import com.mycompany.myapp.service.mapper.SupplierMapper;
+import java.math.BigDecimal;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,9 @@ public class SupplierServiceImpl implements SupplierService {
     public SupplierDTO save(SupplierDTO supplierDTO) {
         log.debug("Request to save Supplier : {}", supplierDTO);
         Supplier supplier = supplierMapper.toEntity(supplierDTO);
+        if (supplier.getCurrentDebt() == null) {
+            supplier.setCurrentDebt(BigDecimal.ZERO);
+        }
         supplier = supplierRepository.save(supplier);
         return supplierMapper.toDto(supplier);
     }

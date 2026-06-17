@@ -77,8 +77,15 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentDTO handleBankWebhook(String bankTransactionId, BigDecimal amount, String content, Long customerId, Long orderId) {
         log.debug("Nhận Webhook từ VNPay/Bank. Mã GD: {}, Số tiền: {}", bankTransactionId, amount);
 
+        String paymentCode = "VNPAY-" + bankTransactionId;
+        Optional<Payment> existingPayment = paymentRepository.findOneByPaymentCode(paymentCode);
+        if (existingPayment.isPresent()) {
+            log.info("VNPay Webhook đã được xử lý trước đó, bỏ qua tạo trùng phiếu: {}", paymentCode);
+            return paymentMapper.toDto(existingPayment.get());
+        }
+
         Payment payment = new Payment();
-        payment.setPaymentCode("VNPAY-" + bankTransactionId);
+        payment.setPaymentCode(paymentCode);
         payment.setType(PaymentType.RECEIPT);
         payment.setAmount(amount);
         payment.setStatus(PaymentStatus.PENDING); // CHƯA TRỪ NỢ

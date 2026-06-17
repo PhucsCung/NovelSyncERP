@@ -137,6 +137,19 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         }
     }
 
+    private PurchaseOrder getPurchaseOrderForDeliveryAccess(Long id) {
+        boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chua dang nhap!"));
+
+        Optional<PurchaseOrder> visibleOrder = isAdmin
+            ? purchaseOrderRepository.findOneWithEagerRelationships(id)
+            : purchaseOrderRepository.findOneByIdAndEmployeeScopedWarehouse(id, currentUserLogin);
+
+        return visibleOrder.orElseThrow(() ->
+            new BadRequestAlertException("Khong tim thay don trong pham vi giao hang cua ban", ENTITY_NAME, "order_access_denied")
+        );
+    }
+
     @Override
     public PurchaseOrderDTO save(PurchaseOrderDTO purchaseOrderDTO) {
         log.debug("Request to save PurchaseOrder : {}", purchaseOrderDTO);
@@ -460,6 +473,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         if (isAdmin || isAccountant) {
             if (eager) return purchaseOrderRepository.findAllWithEagerRelationships(pageable).map(purchaseOrderMapper::toDto);
@@ -468,7 +482,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
 
-        if (isManager) {
+        if (isManager || isShipper) {
             return purchaseOrderRepository.findAllByEmployeeScopedWarehouse(currentUserLogin, pageable).map(purchaseOrderMapper::toDto);
         }
 
@@ -483,6 +497,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         if (isAdmin || isAccountant) {
             return purchaseOrderRepository.findOneWithEagerRelationships(id).map(purchaseOrderMapper::toDto);
@@ -490,7 +505,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow();
 
-        if (isManager) {
+        if (isManager || isShipper) {
             return purchaseOrderRepository.findOneByIdAndEmployeeScopedWarehouse(id, currentUserLogin).map(purchaseOrderMapper::toDto);
         }
 
@@ -518,7 +533,9 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         // 👇 Lưu vết mã đơn và người tạo
         String poCode = order.getPoCode();
-        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null ? order.getEmployee().getUser().getLogin() : "System";
+        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null
+            ? order.getEmployee().getUser().getLogin()
+            : "System";
 
         List<PurchaseOrderLine> lines = purchaseOrderLineRepository.findByPurchaseOrderId(id);
         purchaseOrderLineRepository.deleteAll(lines);
@@ -526,9 +543,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
 
         // 👇 Bắn sự kiện DELETED
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
-        eventPublisher.publishEvent(
-            new OrderNotificationEvent("PURCHASE", "DELETED", id, poCode, currentLogin, creatorLogin)
-        );
+        eventPublisher.publishEvent(new OrderNotificationEvent("PURCHASE", "DELETED", id, poCode, currentLogin, creatorLogin));
     }
 
     @Transactional
@@ -740,7 +755,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Override
     public PurchaseOrderDTO startDelivery(Long id) {
         log.debug("Shipper bắt đầu lấy hàng từ Supplier cho đơn: {}", id);
-        PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow();
+        PurchaseOrder order = getPurchaseOrderForDeliveryAccess(id);
 
         if (order.getStatus() != OrderStatus.APPROVED) {
             throw new BadRequestAlertException(
@@ -760,7 +775,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 "PROCESSING",
                 order.getId(),
                 order.getPoCode(), // VÁ LỖI
-                currentLogin,      // VÁ LỖI
+                currentLogin, // VÁ LỖI
                 order.getEmployee().getUser().getLogin()
             )
         );
@@ -771,7 +786,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
     @Override
     public PurchaseOrderDTO confirmDelivery(Long id) {
         log.debug("Shipper báo cáo hàng đã về tới kho: {}", id);
-        PurchaseOrder order = purchaseOrderRepository.findById(id).orElseThrow();
+        PurchaseOrder order = getPurchaseOrderForDeliveryAccess(id);
 
         if (order.getStatus() != OrderStatus.PROCESSING) {
             throw new BadRequestAlertException("Đơn hàng chưa ở trạng thái Đang giao!", ENTITY_NAME, "invalid_status");
@@ -785,7 +800,7 @@ public class PurchaseOrderServiceImpl implements PurchaseOrderService {
                 "ARRIVED",
                 order.getId(),
                 order.getPoCode(), // VÁ LỖI
-                currentLogin,      // VÁ LỖI
+                currentLogin, // VÁ LỖI
                 order.getEmployee().getUser().getLogin() // VÁ LỖI: Truyền lại đúng originalCreator thay vì "WAREHOUSE_GROUP"
             )
         );

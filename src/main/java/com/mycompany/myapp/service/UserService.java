@@ -2,12 +2,16 @@ package com.mycompany.myapp.service;
 
 import com.mycompany.myapp.config.Constants;
 import com.mycompany.myapp.domain.Authority;
+import com.mycompany.myapp.domain.Department;
 import com.mycompany.myapp.domain.Employee;
 import com.mycompany.myapp.domain.User;
+import com.mycompany.myapp.domain.Warehouse;
 import com.mycompany.myapp.repository.*;
 import com.mycompany.myapp.security.AuthoritiesConstants;
 import com.mycompany.myapp.security.SecurityUtils;
 import com.mycompany.myapp.service.dto.AdminUserDTO;
+import com.mycompany.myapp.service.dto.AdminUserWithEmployeeDTO;
+import com.mycompany.myapp.service.dto.EmployeeProfileRequestDTO;
 import com.mycompany.myapp.service.dto.UserDTO;
 import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
 import java.time.Instant;
@@ -43,6 +47,8 @@ public class UserService {
     private final CacheManager cacheManager;
 
     private final EmployeeRepository employeeRepository;
+    private final DepartmentRepository departmentRepository;
+    private final WarehouseRepository warehouseRepository;
     private final SalesOrderRepository salesOrderRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
 
@@ -52,6 +58,8 @@ public class UserService {
         AuthorityRepository authorityRepository,
         CacheManager cacheManager,
         EmployeeRepository employeeRepository,
+        DepartmentRepository departmentRepository,
+        WarehouseRepository warehouseRepository,
         SalesOrderRepository salesOrderRepository,
         PurchaseOrderRepository purchaseOrderRepository
     ) {
@@ -60,6 +68,8 @@ public class UserService {
         this.authorityRepository = authorityRepository;
         this.cacheManager = cacheManager;
         this.employeeRepository = employeeRepository;
+        this.departmentRepository = departmentRepository;
+        this.warehouseRepository = warehouseRepository;
         this.salesOrderRepository = salesOrderRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
     }
@@ -193,6 +203,25 @@ public class UserService {
         return user;
     }
 
+    public User createUserWithEmployeeProfile(AdminUserWithEmployeeDTO requestDTO) {
+        AdminUserDTO userDTO = requestDTO.getUser();
+        EmployeeProfileRequestDTO employeeProfile = requestDTO.getEmployee();
+
+        validateEmployeeProfileForAuthorities(userDTO.getAuthorities(), employeeProfile);
+
+        User user = createUser(userDTO);
+        Employee employee = employeeRepository
+            .findByUserId(user.getId())
+            .orElseThrow(() ->
+                new BadRequestAlertException("Không tìm thấy hồ sơ nhân viên vừa tạo!", "userManagement", "employee_not_found")
+            );
+
+        applyEmployeeProfile(employee, employeeProfile);
+        employeeRepository.save(employee);
+
+        return user;
+    }
+
     /**
      * Update all information for a specific user, and return the modified user.
      *
@@ -209,6 +238,7 @@ public class UserService {
                 user.setLogin(userDTO.getLogin().toLowerCase());
                 user.setFirstName(userDTO.getFirstName());
                 user.setLastName(userDTO.getLastName());
+                syncUserNameToEmployee(user);
                 if (userDTO.getEmail() != null) {
                     user.setEmail(userDTO.getEmail().toLowerCase());
                 }
@@ -288,6 +318,7 @@ public class UserService {
             .ifPresent(user -> {
                 user.setFirstName(firstName);
                 user.setLastName(lastName);
+                syncUserNameToEmployee(user);
                 if (email != null) {
                     user.setEmail(email.toLowerCase());
                 }
@@ -367,20 +398,105 @@ public class UserService {
         }
     }
 
+    private void validateEmployeeProfileForAuthorities(Set<String> authorities, EmployeeProfileRequestDTO employeeProfile) {
+        Set<String> requestedAuthorities = authorities != null ? authorities : Collections.emptySet();
+        boolean requiresDepartmentAndWarehouse = requestedAuthorities
+            .stream()
+            .anyMatch(authority ->
+                AuthoritiesConstants.MANAGER.equals(authority) ||
+                AuthoritiesConstants.SALES.equals(authority) ||
+                AuthoritiesConstants.PURCHASER.equals(authority) ||
+                AuthoritiesConstants.WAREHOUSE.equals(authority)
+            );
+        boolean requiresWarehouseOnly = requestedAuthorities.stream().anyMatch(AuthoritiesConstants.SHIPPER::equals);
+
+        if (!requiresDepartmentAndWarehouse && !requiresWarehouseOnly) {
+            return;
+        }
+
+        if (employeeProfile == null) {
+            throw new BadRequestAlertException("Vui lòng nhập thông tin hồ sơ nhân viên!", "userManagement", "employee_profile_required");
+        }
+
+        if (requiresDepartmentAndWarehouse && employeeProfile.getDepartmentId() == null) {
+            throw new BadRequestAlertException("Vui lòng chọn phòng ban cho tài khoản này!", "userManagement", "department_required");
+        }
+
+        if ((requiresDepartmentAndWarehouse || requiresWarehouseOnly) && employeeProfile.getScopedWarehouseId() == null) {
+            throw new BadRequestAlertException(
+                "Vui lòng chọn chi nhánh/kho phụ trách cho tài khoản này!",
+                "userManagement",
+                "warehouse_required"
+            );
+        }
+    }
+
+    private void applyEmployeeProfile(Employee employee, EmployeeProfileRequestDTO employeeProfile) {
+        if (employeeProfile == null) {
+            return;
+        }
+
+        String fullName = trimToNull(employeeProfile.getFullName());
+        if (fullName != null) {
+            employee.setFullName(fullName);
+        }
+        employee.setPhone(trimToNull(employeeProfile.getPhone()));
+
+        if (employeeProfile.getDepartmentId() != null) {
+            Department department = departmentRepository
+                .findById(employeeProfile.getDepartmentId())
+                .orElseThrow(() -> new BadRequestAlertException("Phòng ban không tồn tại!", "userManagement", "department_not_found"));
+            employee.setDepartment(department);
+        } else {
+            employee.setDepartment(null);
+        }
+
+        if (employeeProfile.getScopedWarehouseId() != null) {
+            Warehouse warehouse = warehouseRepository
+                .findById(employeeProfile.getScopedWarehouseId())
+                .orElseThrow(() -> new BadRequestAlertException("Chi nhánh/kho không tồn tại!", "userManagement", "warehouse_not_found"));
+            employee.setScopedWarehouse(warehouse);
+        } else {
+            employee.setScopedWarehouse(null);
+        }
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
     /**
      * Tự động tạo hồ sơ Employee ngay khi có User mới được tạo
      */
+    private void syncUserNameToEmployee(User user) {
+        employeeRepository
+            .findByUserId(user.getId())
+            .ifPresent(employee -> {
+                employee.setFullName(buildEmployeeFullName(user));
+                employeeRepository.save(employee);
+            });
+    }
+
+    private String buildEmployeeFullName(User user) {
+        String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+        String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+        String fullName = (lastName + " " + firstName).trim();
+        return fullName.isEmpty() ? user.getLogin() : fullName;
+    }
+
     private void syncUserToEmployee(User user) {
         Employee employee = new Employee();
         employee.setUser(user);
 
         // Gộp Tên và Họ của User để tạo FullName cho Employee
-        String firstName = user.getFirstName() != null ? user.getFirstName() : "";
-        String lastName = user.getLastName() != null ? user.getLastName() : "";
-        String fullName = (firstName + " " + lastName).trim();
+        String fullName = buildEmployeeFullName(user);
 
         // Nếu không có tên họ, lấy luôn tên đăng nhập (login) làm tên hiển thị
-        employee.setFullName(fullName.isEmpty() ? user.getLogin() : fullName);
+        employee.setFullName(fullName);
 
         employeeRepository.save(employee);
         log.debug("Auto-created Employee profile for User: {}", user.getLogin());

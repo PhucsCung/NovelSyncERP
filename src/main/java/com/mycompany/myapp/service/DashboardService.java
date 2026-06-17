@@ -46,11 +46,18 @@ public class DashboardService {
         List<SalesOrder> orders;
 
         // 1. KÉO DỮ LIỆU TỪ DATABASE LÊN DỰA VÀO BỘ LỌC
-        if (year != null && month != null) {
+        if (year != null) {
             // Sếp chọn 1 tháng cụ thể
-            YearMonth ym = YearMonth.of(year, month);
-            Instant startDate = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
-            Instant endDate = ym.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
+            Instant startDate;
+            Instant endDate;
+            if (month != null) {
+                YearMonth ym = YearMonth.of(year, month);
+                startDate = ym.atDay(1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+                endDate = ym.atEndOfMonth().atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
+            } else {
+                startDate = java.time.LocalDate.of(year, 1, 1).atStartOfDay(ZoneId.systemDefault()).toInstant();
+                endDate = java.time.LocalDate.of(year, 12, 31).atTime(23, 59, 59).atZone(ZoneId.systemDefault()).toInstant();
+            }
 
             orders = salesOrderRepository.findCompletedByTimeRangeForDashboard(warehouseId, startDate, endDate);
         } else {

@@ -38,4 +38,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Query("select payment from Payment payment left join fetch payment.customer left join fetch payment.supplier where payment.id =:id")
     Optional<Payment> findOneWithToOneRelationships(@Param("id") Long id);
+
+    Optional<Payment> findOneByPaymentCode(String paymentCode);
 }

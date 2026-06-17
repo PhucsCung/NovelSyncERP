@@ -141,6 +141,23 @@ public class TransferOrderServiceImpl implements TransferOrderService {
         }
     }
 
+    private TransferOrder getTransferOrderForDeliveryAccess(Long id) {
+        boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chua dang nhap!"));
+
+        Optional<TransferOrder> visibleOrder = isAdmin
+            ? transferOrderRepository.findOneWithEagerRelationships(id)
+            : transferOrderRepository.findOneByIdAndEmployeeScopedWarehouse(id, currentUserLogin);
+
+        return visibleOrder.orElseThrow(() ->
+            new BadRequestAlertException(
+                "Khong tim thay phieu dieu chuyen trong pham vi giao hang cua ban",
+                ENTITY_NAME,
+                "order_access_denied"
+            )
+        );
+    }
+
     @Override
     public TransferOrderDTO save(TransferOrderDTO transferOrderDTO) {
         log.debug("Request to save TransferOrder : {}", transferOrderDTO);
@@ -337,7 +354,9 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         // 👇 Lưu vết mã đơn và người tạo
         String transferCode = order.getTransferCode();
-        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null ? order.getEmployee().getUser().getLogin() : "System";
+        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null
+            ? order.getEmployee().getUser().getLogin()
+            : "System";
 
         List<TransferOrderLine> lines = transferOrderLineRepository.findByTransferOrderId(id);
         transferOrderLineRepository.deleteAll(lines);
@@ -345,9 +364,7 @@ public class TransferOrderServiceImpl implements TransferOrderService {
 
         // 👇 Bắn sự kiện DELETED
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
-        eventPublisher.publishEvent(
-            new OrderNotificationEvent("TRANSFER", "DELETED", id, transferCode, currentLogin, creatorLogin)
-        );
+        eventPublisher.publishEvent(new OrderNotificationEvent("TRANSFER", "DELETED", id, transferCode, currentLogin, creatorLogin));
     }
 
     @Transactional
@@ -400,7 +417,7 @@ public class TransferOrderServiceImpl implements TransferOrderService {
     @Transactional
     @Override
     public TransferOrderDTO startDelivery(Long id) {
-        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
+        TransferOrder order = getTransferOrderForDeliveryAccess(id);
         if (order.getStatus() != OrderStatus.APPROVED) throw new BadRequestAlertException(
             "Kho chưa xuất, chưa thể chở!",
             ENTITY_NAME,
@@ -420,7 +437,7 @@ public class TransferOrderServiceImpl implements TransferOrderService {
     @Transactional
     @Override
     public TransferOrderDTO confirmDelivery(Long id) {
-        TransferOrder order = transferOrderRepository.findById(id).orElseThrow();
+        TransferOrder order = getTransferOrderForDeliveryAccess(id);
         if (order.getStatus() != OrderStatus.PROCESSING) throw new BadRequestAlertException(
             "Chưa trên đường giao!",
             ENTITY_NAME,

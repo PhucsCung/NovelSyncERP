@@ -85,6 +85,8 @@ public class SecurityConfiguration {
             .antMatchers("/api/admin/**").hasAuthority(AuthoritiesConstants.ADMIN)
             .antMatchers(HttpMethod.GET, "/api/products").permitAll()
             .antMatchers(HttpMethod.GET, "/api/categories").permitAll()
+            .antMatchers(HttpMethod.GET, "/api/payments/vnpay-webhook").permitAll()
+            .antMatchers(HttpMethod.GET, "/api/payments/vnpay-return").permitAll()
             .antMatchers(HttpMethod.POST, "/api/payments/vnpay-webhook").permitAll()
             .antMatchers("/ws/**").permitAll()
             .antMatchers("/api/**").authenticated()

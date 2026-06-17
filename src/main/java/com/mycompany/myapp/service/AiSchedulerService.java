@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ public class AiSchedulerService {
     private final ProductRepository productRepository;
     private final WarehouseRepository warehouseRepository;
     private final SalesOrderLineRepository salesOrderLineRepository;
+    private final PurchaseOrderLineRepository purchaseOrderLineRepository;
     private final PurchaseOrderService purchaseOrderService;
     private final RestTemplate restTemplate;
     private final WarehouseMapper warehouseMapper;
@@ -41,6 +43,7 @@ public class AiSchedulerService {
         ProductRepository productRepository,
         WarehouseRepository warehouseRepository,
         SalesOrderLineRepository salesOrderLineRepository,
+        PurchaseOrderLineRepository purchaseOrderLineRepository,
         PurchaseOrderService purchaseOrderService,
         RestTemplate restTemplate,
         WarehouseMapper warehouseMapper,
@@ -50,6 +53,7 @@ public class AiSchedulerService {
         this.productRepository = productRepository;
         this.warehouseRepository = warehouseRepository;
         this.salesOrderLineRepository = salesOrderLineRepository;
+        this.purchaseOrderLineRepository = purchaseOrderLineRepository;
         this.purchaseOrderService = purchaseOrderService;
         this.restTemplate = restTemplate;
         this.warehouseMapper = warehouseMapper;
@@ -72,11 +76,7 @@ public class AiSchedulerService {
 
         // Vòng lặp duyệt qua từng kho vật lý trên hệ thống
         for (Warehouse warehouse : warehouses) {
-            PurchaseOrderDTO draftPo = new PurchaseOrderDTO();
-            draftPo.setWarehouse(warehouseMapper.toDto(warehouse));
-            draftPo.setStatus(OrderStatus.DRAFT); // Gán trạng thái ban đầu là đơn Nháp (DRAFT)
-
-            List<PurchaseOrderLineDTO> poLines = new ArrayList<>();
+            Map<Long, AiRestockDraft> draftsBySupplier = new LinkedHashMap<>();
 
             // Vòng lặp duyệt qua từng sản phẩm để gọi AI dự báo lượng tiêu thụ tại Kho này
             for (Product product : products) {
@@ -111,11 +111,30 @@ public class AiSchedulerService {
                             warehouse.getName()
                         );
 
+                        Optional<Supplier> supplierOpt = findRecentSupplierForProduct(product.getId());
+                        if (supplierOpt.isEmpty()) {
+                            log.warn(
+                                "Bỏ qua đề xuất AI cho sản phẩm ID {} tại Kho {} vì chưa có lịch sử nhập hàng để xác định Nhà cung cấp",
+                                product.getId(),
+                                warehouse.getName()
+                            );
+                            continue;
+                        }
+
+                        Supplier supplier = supplierOpt.get();
+                        AiRestockDraft draft = draftsBySupplier.computeIfAbsent(supplier.getId(), ignored -> new AiRestockDraft(supplier));
+
                         PurchaseOrderLineDTO poLine = new PurchaseOrderLineDTO();
                         poLine.setQuantity(aiResponse.getRecommend_restock());
                         poLine.setUnitPrice(product.getPurchasePrice()); // Ép cứng đơn giá nhập tiêu chuẩn từ DB
 
-                        poLines.add(poLine);
+                        ProductDTO productDTO = new ProductDTO();
+                        productDTO.setId(product.getId());
+                        poLine.setProduct(productDTO);
+
+                        draft.lines.add(poLine);
+                        draft.totalAmount =
+                            draft.totalAmount.add(product.getPurchasePrice().multiply(new BigDecimal(aiResponse.getRecommend_restock())));
                     }
                 } catch (Exception e) {
                     log.error("Lỗi khi gọi API AI Python cho sản phẩm ID {}: {}", product.getId(), e.getMessage());
@@ -123,12 +142,26 @@ public class AiSchedulerService {
             }
 
             // NẾU CÓ MẶT HÀNG ĐƯỢC AI ĐỀ XUẤT NHẬP THÊM CHO KHO NÀY
-            if (!poLines.isEmpty()) {
-                draftPo.setPurchaseOrderLines(poLines);
+            for (AiRestockDraft draft : draftsBySupplier.values()) {
+                if (draft.lines.isEmpty()) {
+                    continue;
+                }
+
+                PurchaseOrderDTO draftPo = new PurchaseOrderDTO();
+                draftPo.setWarehouse(warehouseMapper.toDto(warehouse));
+                draftPo.setStatus(OrderStatus.DRAFT);
+                draftPo.setSupplier(toSupplierDTO(draft.supplier));
+                draftPo.setPurchaseOrderLines(draft.lines);
+                draftPo.setTotalAmount(draft.totalAmount);
 
                 // 1. Tiến hành lưu đơn nhập hàng nháp xuống Database thông qua PurchaseOrderService
                 PurchaseOrderDTO savedPo = purchaseOrderService.save(draftPo);
-                log.info("ĐÃ TỰ ĐỘNG TẠO ĐƠN NHẬP HÀNG NHÁP ID {} CHO KHO: {}", savedPo.getId(), warehouse.getName());
+                log.info(
+                    "Đã tự động tạo đơn nhập hàng nháp ID {} cho Kho: {}, Nhà cung cấp: {}",
+                    savedPo.getId(),
+                    warehouse.getName(),
+                    draft.supplier.getName()
+                );
 
                 // 2. KHỞI TẠO VÀ PHÁT ĐI SỰ KIỆN EVENT-DRIVEN SANG LISTENER
                 try {
@@ -224,6 +257,27 @@ public class AiSchedulerService {
         }
 
         return result;
+    }
+
+    private Optional<Supplier> findRecentSupplierForProduct(Long productId) {
+        return purchaseOrderLineRepository.findRecentSuppliersByProductId(productId, PageRequest.of(0, 1)).stream().findFirst();
+    }
+
+    private SupplierDTO toSupplierDTO(Supplier supplier) {
+        SupplierDTO supplierDTO = new SupplierDTO();
+        supplierDTO.setId(supplier.getId());
+        return supplierDTO;
+    }
+
+    private static final class AiRestockDraft {
+
+        private final Supplier supplier;
+        private final List<PurchaseOrderLineDTO> lines = new ArrayList<>();
+        private BigDecimal totalAmount = BigDecimal.ZERO;
+
+        private AiRestockDraft(Supplier supplier) {
+            this.supplier = supplier;
+        }
     }
 
     /**

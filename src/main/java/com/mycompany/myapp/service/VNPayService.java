@@ -101,4 +101,35 @@ public class VNPayService {
         // Trả về Link URL thanh toán cuối cùng
         return vnp_PayUrl + "?" + queryUrl;
     }
+
+    public boolean verifySignature(Map<String, String> params) {
+        String receivedHash = params.get("vnp_SecureHash");
+        if (receivedHash == null || receivedHash.isBlank()) {
+            return false;
+        }
+
+        Map<String, String> signedParams = new HashMap<>(params);
+        signedParams.remove("vnp_SecureHash");
+        signedParams.remove("vnp_SecureHashType");
+
+        List<String> fieldNames = new ArrayList<>(signedParams.keySet());
+        Collections.sort(fieldNames);
+
+        List<String> hashFields = new ArrayList<>();
+        for (String fieldName : fieldNames) {
+            String fieldValue = signedParams.get(fieldName);
+            if (fieldValue != null && !fieldValue.isBlank()) {
+                try {
+                    hashFields.add(fieldName + "=" + URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
+                } catch (Exception e) {
+                    log.error("Lỗi khi verify chữ ký VNPay", e);
+                    return false;
+                }
+            }
+        }
+
+        String hashData = String.join("&", hashFields);
+        String calculatedHash = VNPayConfig.hmacSHA512(secretKey, hashData.toString());
+        return calculatedHash.equalsIgnoreCase(receivedHash);
+    }
 }

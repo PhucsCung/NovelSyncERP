@@ -9,6 +9,7 @@ import com.mycompany.myapp.service.VNPayService;
 import com.mycompany.myapp.service.dto.PaymentDTO;
 import com.mycompany.myapp.web.rest.errors.BadRequestAlertException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 import tech.jhipster.web.util.HeaderUtil;
 import tech.jhipster.web.util.PaginationUtil;
 import tech.jhipster.web.util.ResponseUtil;
@@ -42,6 +44,9 @@ public class PaymentResource {
 
     @Value("${jhipster.clientApp.name}")
     private String applicationName;
+
+    @Value("${jhipster.mail.base-url:http://localhost:3000/}")
+    private String frontendBaseUrl;
 
     private final PaymentService paymentService;
     private final PaymentRepository paymentRepository;
@@ -134,6 +139,36 @@ public class PaymentResource {
         return ResponseUtil.wrapOrNotFound(paymentDTO);
     }
 
+    @GetMapping("/payments/vnpay-webhook")
+    public ResponseEntity<Map<String, String>> receiveVNPayIpn(@RequestParam Map<String, String> params) {
+        log.debug("REST request to handle VNPay IPN: {}", params);
+        return handleVNPayCallback(params);
+    }
+
+    @GetMapping("/payments/vnpay-return")
+    public ResponseEntity<Void> receiveVNPayReturn(@RequestParam Map<String, String> params) {
+        log.debug("REST request to handle VNPay ReturnUrl: {}", params);
+        Map<String, String> callbackResult = handleVNPayCallback(params).getBody();
+        String rspCode = callbackResult != null ? callbackResult.getOrDefault("RspCode", "99") : "99";
+        String message = callbackResult != null
+            ? callbackResult.getOrDefault("Message", "Unknown payment result")
+            : "Unknown payment result";
+        String status = "00".equals(rspCode) && "Confirm Success".equals(message) ? "success" : "failed";
+        Long orderId = parseOrderId(params.get("vnp_TxnRef"));
+
+        URI redirectUri = UriComponentsBuilder
+            .fromUriString(frontendBaseUrl)
+            .path(frontendBaseUrl.endsWith("/") ? "payments/vnpay-result" : "/payments/vnpay-result")
+            .queryParam("status", status)
+            .queryParam("code", rspCode)
+            .queryParam("message", message)
+            .queryParam("orderId", orderId)
+            .build()
+            .toUri();
+
+        return ResponseEntity.status(HttpStatus.FOUND).location(redirectUri).build();
+    }
+
     /**
      * API giả lập nhận Webhook từ VNPay (Mở public hoặc yêu cầu token tùy ý bạn)
      */
@@ -159,6 +194,73 @@ public class PaymentResource {
         paymentService.handleBankWebhook(bankTxnId, amount, content, customerId, orderId);
 
         return ResponseEntity.ok().build();
+    }
+
+    private ResponseEntity<Map<String, String>> handleVNPayCallback(Map<String, String> params) {
+        if (!vnPayService.verifySignature(params)) {
+            log.error("CẢNH BÁO: VNPay callback sai chữ ký: {}", params);
+            return vnpayResponse("97", "Invalid signature");
+        }
+
+        String responseCode = params.get("vnp_ResponseCode");
+        String transactionStatus = params.get("vnp_TransactionStatus");
+        if (!"00".equals(responseCode) || !"00".equals(transactionStatus)) {
+            log.warn(
+                "VNPay giao dịch không thành công, bỏ qua tạo payment. ResponseCode={}, TransactionStatus={}",
+                responseCode,
+                transactionStatus
+            );
+            return vnpayResponse("00", "Payment failed; ignored");
+        }
+
+        Long orderId = parseOrderId(params.get("vnp_TxnRef"));
+        if (orderId == null) {
+            return vnpayResponse("01", "Order not found");
+        }
+
+        SalesOrder order = salesOrderRepository.findById(orderId).orElse(null);
+        if (order == null) {
+            return vnpayResponse("01", "Order not found");
+        }
+
+        BigDecimal vnpAmount = new BigDecimal(params.getOrDefault("vnp_Amount", "0"));
+        BigDecimal expectedAmount = order.getTotalAmount().multiply(new BigDecimal("100")).setScale(0, RoundingMode.HALF_UP);
+        if (vnpAmount.compareTo(expectedAmount) != 0) {
+            log.error("VNPay amount không khớp. orderId={}, expected={}, actual={}", orderId, expectedAmount, vnpAmount);
+            return vnpayResponse("04", "Invalid amount");
+        }
+
+        String bankTxnId = params.get("vnp_TransactionNo");
+        if (bankTxnId == null || bankTxnId.isBlank()) {
+            bankTxnId = params.get("vnp_TxnRef");
+        }
+
+        BigDecimal amount = vnpAmount.divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        Long customerId = order.getCustomer() != null ? order.getCustomer().getId() : null;
+        String content = params.getOrDefault("vnp_OrderInfo", "VNPay payment for SalesOrder " + orderId);
+
+        paymentService.handleBankWebhook(bankTxnId, amount, content, customerId, orderId);
+
+        return vnpayResponse("00", "Confirm Success");
+    }
+
+    private Long parseOrderId(String txnRef) {
+        if (txnRef == null || txnRef.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(txnRef.split("_")[0]);
+        } catch (NumberFormatException e) {
+            log.error("Không parse được orderId từ vnp_TxnRef={}", txnRef);
+            return null;
+        }
+    }
+
+    private ResponseEntity<Map<String, String>> vnpayResponse(String code, String message) {
+        Map<String, String> response = new HashMap<>();
+        response.put("RspCode", code);
+        response.put("Message", message);
+        return ResponseEntity.ok(response);
     }
 
     /**

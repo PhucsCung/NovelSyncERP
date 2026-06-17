@@ -124,3 +124,4 @@ vnpay:
   hash-secret: '6Y5HX9IJJ5Q5SUSYOO0763J6TDCZICL8'
   url: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'
   return-url: 'http://localhost:8080/api/payments/vnpay-return' # Đổi tạm thành cổng backend để xem log
+  ipn-url: 'http://localhost:8080/api/payments/vnpay-webhook'

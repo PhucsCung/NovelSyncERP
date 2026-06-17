@@ -1,6 +1,7 @@
 package com.mycompany.myapp.repository;
 
 import com.mycompany.myapp.domain.PurchaseOrderLine;
+import com.mycompany.myapp.domain.Supplier;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -41,4 +42,12 @@ public interface PurchaseOrderLineRepository extends JpaRepository<PurchaseOrder
     Optional<PurchaseOrderLine> findOneWithToOneRelationships(@Param("id") Long id);
 
     List<PurchaseOrderLine> findByPurchaseOrderId(Long PurchaseOrderId);
+
+    @Query(
+        "select po.supplier from PurchaseOrderLine purchaseOrderLine " +
+        "join purchaseOrderLine.purchaseOrder po " +
+        "where purchaseOrderLine.product.id = :productId and po.supplier is not null " +
+        "order by po.createdDate desc, po.id desc"
+    )
+    Page<Supplier> findRecentSuppliersByProductId(@Param("productId") Long productId, Pageable pageable);
 }

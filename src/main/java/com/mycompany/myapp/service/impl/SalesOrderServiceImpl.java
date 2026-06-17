@@ -137,6 +137,19 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         }
     }
 
+    private SalesOrder getSalesOrderForDeliveryAccess(Long id) {
+        boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
+        String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
+
+        Optional<SalesOrder> visibleOrder = isAdmin
+            ? salesOrderRepository.findOneWithEagerRelationships(id)
+            : salesOrderRepository.findOneByIdAndEmployeeScopedWarehouse(id, currentUserLogin);
+
+        return visibleOrder.orElseThrow(() ->
+            new BadRequestAlertException("Không tìm thấy đơn trong phạm vi giao hàng của bạn", ENTITY_NAME, "order_access_denied")
+        );
+    }
+
     @Override
     public SalesOrderDTO save(SalesOrderDTO salesOrderDTO) {
         log.debug("Request to save SalesOrder : {}", salesOrderDTO);
@@ -444,6 +457,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         if (isAdmin || isAccountant) {
             if (eager) return salesOrderRepository.findAllWithEagerRelationships(pageable).map(salesOrderMapper::toDto);
@@ -452,7 +466,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
 
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow(() -> new RuntimeException("Chưa đăng nhập!"));
 
-        if (isManager) {
+        if (isManager || isShipper) {
             return salesOrderRepository.findAllByEmployeeScopedWarehouse(currentUserLogin, pageable).map(salesOrderMapper::toDto);
         }
 
@@ -467,6 +481,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
         boolean isAdmin = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ADMIN);
         boolean isAccountant = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.ACCOUNTANT);
         boolean isManager = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.MANAGER);
+        boolean isShipper = SecurityUtils.hasCurrentUserThisAuthority(AuthoritiesConstants.SHIPPER);
 
         if (isAdmin || isAccountant) {
             return salesOrderRepository.findOneWithEagerRelationships(id).map(salesOrderMapper::toDto);
@@ -474,7 +489,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
 
         String currentUserLogin = SecurityUtils.getCurrentUserLogin().orElseThrow();
 
-        if (isManager) {
+        if (isManager || isShipper) {
             return salesOrderRepository.findOneByIdAndEmployeeScopedWarehouse(id, currentUserLogin).map(salesOrderMapper::toDto);
         }
 
@@ -498,7 +513,9 @@ public class SalesOrderServiceImpl implements SalesOrderService {
 
         // 👇 Lưu vết mã đơn và người tạo TRƯỚC KHI XÓA
         String orderCode = order.getOrderCode();
-        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null ? order.getEmployee().getUser().getLogin() : "System";
+        String creatorLogin = order.getEmployee() != null && order.getEmployee().getUser() != null
+            ? order.getEmployee().getUser().getLogin()
+            : "System";
 
         List<SalesOrderLine> lines = salesOrderLineRepository.findBySalesOrderId(id);
         salesOrderLineRepository.deleteAll(lines);
@@ -506,9 +523,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
 
         // 👇 Bắn sự kiện DELETED báo cho quản lý
         String currentLogin = SecurityUtils.getCurrentUserLogin().orElse("System");
-        eventPublisher.publishEvent(
-            new OrderNotificationEvent("SALES", "DELETED", id, orderCode, currentLogin, creatorLogin)
-        );
+        eventPublisher.publishEvent(new OrderNotificationEvent("SALES", "DELETED", id, orderCode, currentLogin, creatorLogin));
     }
 
     @Transactional
@@ -760,7 +775,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
     @Override
     public SalesOrderDTO startDelivery(Long id) {
         log.debug("Shipper bắt đầu giao đơn bán lẻ ra xe: {}", id);
-        SalesOrder order = salesOrderRepository.findById(id).orElseThrow();
+        SalesOrder order = getSalesOrderForDeliveryAccess(id);
 
         if (order.getStatus() != OrderStatus.APPROVED) {
             throw new BadRequestAlertException(
@@ -780,7 +795,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 "PROCESSING",
                 order.getId(),
                 order.getOrderCode(), // VÁ LỖI: Trả về đúng mã đơn
-                currentLogin,         // VÁ LỖI: Lấy user hiện tại thay vì "System"
+                currentLogin, // VÁ LỖI: Lấy user hiện tại thay vì "System"
                 order.getEmployee().getUser().getLogin()
             )
         );
@@ -791,9 +806,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
     @Override
     public SalesOrderDTO confirmDelivery(Long id) {
         log.debug("Shipper báo cáo giao thành công đơn: {}", id);
-        SalesOrder order = salesOrderRepository
-            .findById(id)
-            .orElseThrow(() -> new BadRequestAlertException("Không tìm thấy đơn", ENTITY_NAME, "id_not_found"));
+        SalesOrder order = getSalesOrderForDeliveryAccess(id);
 
         if (order.getStatus() != OrderStatus.PROCESSING) {
             throw new BadRequestAlertException("Đơn hàng chưa ở trạng thái Đang giao!", ENTITY_NAME, "invalid_status");
@@ -806,7 +819,7 @@ public class SalesOrderServiceImpl implements SalesOrderService {
                 "DELIVERED_WAITING_PAYMENT",
                 order.getId(),
                 order.getOrderCode(), // VÁ LỖI
-                currentLogin,         // VÁ LỖI
+                currentLogin, // VÁ LỖI
                 order.getEmployee().getUser().getLogin() // VÁ LỖI: Truyền lại đúng originalCreator thay vì "ACCOUNTANT_GROUP"
             )
         );
