@@ -1,9 +1,11 @@
 package com.mycompany.myapp.service;
 
 import com.mycompany.myapp.domain.*;
+import com.mycompany.myapp.domain.enumeration.OrderStatus;
 import com.mycompany.myapp.repository.*;
 import com.mycompany.myapp.service.dto.*;
 import com.mycompany.myapp.service.dto.MonthlySalesDataDTO;
+import com.mycompany.myapp.service.event.OrderNotificationEvent;
 import com.mycompany.myapp.service.mapper.WarehouseMapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -14,6 +16,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,7 @@ public class AiSchedulerService {
     private final RestTemplate restTemplate;
     private final WarehouseMapper warehouseMapper;
     private final InventoryBalanceRepository inventoryBalanceRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AiSchedulerService(
         ProductRepository productRepository,
@@ -40,7 +44,8 @@ public class AiSchedulerService {
         PurchaseOrderService purchaseOrderService,
         RestTemplate restTemplate,
         WarehouseMapper warehouseMapper,
-        InventoryBalanceRepository inventoryBalanceRepository
+        InventoryBalanceRepository inventoryBalanceRepository,
+        ApplicationEventPublisher eventPublisher
     ) {
         this.productRepository = productRepository;
         this.warehouseRepository = warehouseRepository;
@@ -49,10 +54,12 @@ public class AiSchedulerService {
         this.restTemplate = restTemplate;
         this.warehouseMapper = warehouseMapper;
         this.inventoryBalanceRepository = inventoryBalanceRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
      * Cron Job: Chạy tự động vào 0h 00p ngày mùng 1 hàng tháng
+     * AI tự động phân tích nhu cầu và lập Đơn nhập hàng nháp, bắn sự kiện thông báo cho Quản lý phòng Purchase theo Kho tương ứng
      */
     @Scheduled(cron = "0 0 0 1 * ?")
     public void executeMonthlyRestockPrediction() {
@@ -63,18 +70,23 @@ public class AiSchedulerService {
 
         String pythonAiUrl = "http://localhost:8000/predict";
 
+        // Vòng lặp duyệt qua từng kho vật lý trên hệ thống
         for (Warehouse warehouse : warehouses) {
             PurchaseOrderDTO draftPo = new PurchaseOrderDTO();
             draftPo.setWarehouse(warehouseMapper.toDto(warehouse));
+            draftPo.setStatus(OrderStatus.DRAFT); // Gán trạng thái ban đầu là đơn Nháp (DRAFT)
+
             List<PurchaseOrderLineDTO> poLines = new ArrayList<>();
 
+            // Vòng lặp duyệt qua từng sản phẩm để gọi AI dự báo lượng tiêu thụ tại Kho này
             for (Product product : products) {
                 List<SalesOrderLine> historyLines = salesOrderLineRepository.findCompletedSalesHistory(product.getId(), warehouse.getId());
 
                 if (historyLines.isEmpty()) {
                     continue;
                 }
-                // LẤY TỒN KHO THỰC TẾ TỪ INVENTORY BALANCE
+
+                // LẤY TỒN KHO THỰC TẾ TỪ BẢNG INVENTORY BALANCE
                 int currentStock = 0;
                 Optional<InventoryBalance> balanceOpt = inventoryBalanceRepository.findOneByProductIdAndWarehouseId(
                     product.getId(),
@@ -88,11 +100,12 @@ public class AiSchedulerService {
                 AiPredictRequestDTO requestData = buildAiRequest(product, warehouse, historyLines, currentStock);
 
                 try {
+                    // Gọi API sang máy chủ Python FastAPI
                     AiPredictResponseDTO aiResponse = restTemplate.postForObject(pythonAiUrl, requestData, AiPredictResponseDTO.class);
 
                     if (aiResponse != null && aiResponse.getRecommend_restock() != null && aiResponse.getRecommend_restock() > 0) {
                         log.info(
-                            "AI đề xuất nhập thêm {} cuốn cho sản phẩm ID: {} tại Kho: {}",
+                            "AI đề xuất nhập thêm {} sản phẩm cho sản phẩm ID: {} tại Kho: {}",
                             aiResponse.getRecommend_restock(),
                             product.getId(),
                             warehouse.getName()
@@ -100,9 +113,7 @@ public class AiSchedulerService {
 
                         PurchaseOrderLineDTO poLine = new PurchaseOrderLineDTO();
                         poLine.setQuantity(aiResponse.getRecommend_restock());
-
-                        // LẤY GIÁ NHẬP (PURCHASE PRICE) ĐỂ ĐIỀN VÀO ĐƠN MUA HÀNG
-                        poLine.setUnitPrice(product.getPurchasePrice());
+                        poLine.setUnitPrice(product.getPurchasePrice()); // Ép cứng đơn giá nhập tiêu chuẩn từ DB
 
                         poLines.add(poLine);
                     }
@@ -111,10 +122,36 @@ public class AiSchedulerService {
                 }
             }
 
+            // NẾU CÓ MẶT HÀNG ĐƯỢC AI ĐỀ XUẤT NHẬP THÊM CHO KHO NÀY
             if (!poLines.isEmpty()) {
                 draftPo.setPurchaseOrderLines(poLines);
-                purchaseOrderService.save(draftPo);
-                log.info("ĐÃ TỰ ĐỘNG TẠO ĐƠN NHẬP HÀNG NHÁP CHO KHO: {}", warehouse.getName());
+
+                // 1. Tiến hành lưu đơn nhập hàng nháp xuống Database thông qua PurchaseOrderService
+                PurchaseOrderDTO savedPo = purchaseOrderService.save(draftPo);
+                log.info("ĐÃ TỰ ĐỘNG TẠO ĐƠN NHẬP HÀNG NHÁP ID {} CHO KHO: {}", savedPo.getId(), warehouse.getName());
+
+                // 2. KHỞI TẠO VÀ PHÁT ĐI SỰ KIỆN EVENT-DRIVEN SANG LISTENER
+                try {
+                    // Trích xuất mã đơn hàng vừa sinh ra, nếu trống thì tạo mã tạm theo ID
+                    String orderCode = (savedPo.getPoCode() != null) ? savedPo.getPoCode() : "AI-PO-" + savedPo.getId();
+
+                    // Gọi Constructor: (orderType, action, orderId, orderCode, actionByUserLogin, originalCreatorLogin)
+                    OrderNotificationEvent restockEvent = new OrderNotificationEvent(
+                        "PURCHASE", // orderType: Phân loại chứng từ Mua hàng
+                        "AI_RESTOCK_ALERT", // action: Đẻ ra một Case hành động mới tinh để Listener bắt bộ lọc riêng
+                        savedPo.getId(), // orderId: ID đơn hàng vừa lưu thành công
+                        orderCode, // orderCode: Mã đơn hàng
+                        "SYSTEM_AI", // actionByUserLogin: Định danh tác nhân thực hiện thao tác
+                        String.valueOf(warehouse.getId()) // originalCreatorLogin: "Mẹo" truyền trực tiếp ID Kho dưới dạng String sang Listener bóc tách
+                    );
+
+                    // Bắn sự kiện lên context ứng dụng để NotificationEventListener bắt lấy xử lý tiếp
+                    eventPublisher.publishEvent(restockEvent);
+
+                    log.info("Đã phát sóng sự kiện AI_RESTOCK_ALERT cho Đơn nhập tự động mã: {}", orderCode);
+                } catch (Exception e) {
+                    log.error("Lỗi khi kích hoạt luồng thông báo sự kiện AI cho kho {}: {}", warehouse.getName(), e.getMessage());
+                }
             }
         }
 
