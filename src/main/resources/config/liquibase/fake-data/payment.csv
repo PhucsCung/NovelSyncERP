@@ -1,8 +1,8 @@
 id;payment_code;type;amount;reference_order_id;customer_id;supplier_id;status;note;created_by;created_date;last_modified_by;last_modified_date
-1;PAY-IN-SO-20240115-0001;IN;32500000.00;1;1;;COMPLETED;Khách hàng thanh toán đơn hàng;admin;2024-01-15 14:25:00;admin;2024-01-15 14:25:00
-2;PAY-IN-SO-20240214-0002;IN;5850000.00;2;2;;COMPLETED;Khách hàng chuyển khoản Techcombank;admin;2024-02-14 16:05:00;admin;2024-02-14 16:05:00
-3;PAY-IN-SO-20240320-0003;IN;195000.00;3;3;;COMPLETED;Thanh toán tiền mặt tại quầy;admin;2024-03-20 11:35:00;admin;2024-03-20 11:35:00
-4;PAY-OUT-PO-20240301-0001;OUT;2250000000.00;1;;1;COMPLETED;Chi tiền nhập hàng đợt 1 cho Apple VN;admin;2024-03-02 11:15:00;admin;2024-03-02 11:15:00
-5;PAY-OUT-PO-20240915-0002;OUT;3750000000.00;2;;2;COMPLETED;Chuyển khoản thanh toán Digiworld;admin;2024-09-16 15:10:00;admin;2024-09-16 15:10:00
-6;PAY-IN-SO-20241111-0011;IN;162500000.00;11;1;;COMPLETED;Thu tiền đại lý đơn hàng ngày lễ;admin;2024-11-11 08:10:00;admin;2024-11-11 08:10:00
-7;PAY-IN-SO-20241212-0013;IN;227500000.00;13;3;;COMPLETED;Khách đối soát công nợ cuối tháng;admin;2024-12-12 10:15:00;admin;2024-12-12 10:15:00
+1;PAY-IN-SO-20240115-0001;RECEIPT;32500000.00;1;1;;COMPLETED;Khách hàng thanh toán đơn hàng;admin;2024-01-15 14:25:00;admin;2024-01-15 14:25:00
+2;PAY-IN-SO-20240214-0002;RECEIPT;5850000.00;2;2;;COMPLETED;Khách hàng chuyển khoản Techcombank;admin;2024-02-14 16:05:00;admin;2024-02-14 16:05:00
+3;PAY-IN-SO-20240320-0003;RECEIPT;195000.00;3;3;;COMPLETED;Thanh toán tiền mặt tại quầy;admin;2024-03-20 11:35:00;admin;2024-03-20 11:35:00
+4;PAY-OUT-PO-20240301-0001;DISBURSEMENT;2250000000.00;1;;1;COMPLETED;Chi tiền nhập hàng đợt 1 cho Apple VN;admin;2024-03-02 11:15:00;admin;2024-03-02 11:15:00
+5;PAY-OUT-PO-20240915-0002;DISBURSEMENT;3750000000.00;2;;2;COMPLETED;Chuyển khoản thanh toán Digiworld;admin;2024-09-16 15:10:00;admin;2024-09-16 15:10:00
+6;PAY-IN-SO-20241111-0011;RECEIPT;162500000.00;11;1;;COMPLETED;Thu tiền đại lý đơn hàng ngày lễ;admin;2024-11-11 08:10:00;admin;2024-11-11 08:10:00
+7;PAY-IN-SO-20241212-0013;RECEIPT;227500000.00;13;3;;COMPLETED;Khách đối soát công nợ cuối tháng;admin;2024-12-12 10:15:00;admin;2024-12-12 10:15:00

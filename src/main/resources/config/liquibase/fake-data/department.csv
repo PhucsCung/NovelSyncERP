@@ -2,4 +2,3 @@ id;code;name;is_active
 1;DEP001;SALES;true
 2;DEP002;PURCHASE;true
 3;DEP003;WAREHOUSE;true
-

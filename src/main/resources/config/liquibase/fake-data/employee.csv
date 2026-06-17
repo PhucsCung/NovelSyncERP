@@ -1,11 +1,11 @@
 id;full_name;phone;user_id;scoped_warehouse_id;department_id;is_active
 1;Nguyễn Văn Giám Đốc;0987654001;1;1;1;true
-2;Trần Thị Kế Toán;0987654002;2;1;4;true
+2;Trần Thị Kế Toán;0987654002;2;1;;true
 3;Lê Văn Thủ Kho HN;0987654003;3;1;3;true
 4;Phạm Thị Mua Hàng;0987654004;4;1;2;true
 5;Hoàng Văn Sale ĐN;0987654005;5;2;1;true
 6;Đặng Thị Kho ĐN;0987654006;6;2;3;true
 7;Bùi Văn Sale HCM;0987654007;7;3;1;true
 8;Vũ Thị Kho HCM;0987654008;8;3;3;true
-9;Ngô Văn Nhân Sự;0987654009;9;1;5;true
+9;Ngô Văn Nhân Sự;0987654009;9;1;;true
 10;Lý Thị IT;0987654010;10;1;1;true
